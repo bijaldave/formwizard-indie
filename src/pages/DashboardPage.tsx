@@ -207,10 +207,9 @@ export const DashboardPage = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Security / Symbol</TableHead>
+                        <TableHead>Symbol</TableHead>
+                        <TableHead>ISIN</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
-                        <TableHead className="text-right">Dividend/Share</TableHead>
-                        <TableHead className="text-right">Total Dividend</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Action</TableHead>
                       </TableRow>
@@ -219,19 +218,16 @@ export const DashboardPage = () => {
                       {dividends.map((dividend, index) => (
                         <TableRow key={dividend.isin || dividend.symbol}>
                           <TableCell>
-                            <div>
-                              <div className="font-medium">{dividend.company}</div>
-                              <div className="text-sm text-muted-foreground">{dividend.symbol}</div>
-                            </div>
+                            <div className="font-medium">{dividend.symbol}</div>
+                            <div className="text-sm text-muted-foreground">{dividend.company}</div>
                           </TableCell>
-                          <TableCell className="text-right">
-                            {dividend.qty.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            ₹{dividend.dps.toFixed(2)}
+                          <TableCell>
+                            <Badge variant="secondary" className="font-mono text-xs">
+                              {dividend.isin || '—'}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-right font-medium">
-                            ₹{dividend.total.toLocaleString()}
+                            {dividend.qty.toLocaleString()}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -247,7 +243,7 @@ export const DashboardPage = () => {
                                 disabled={!isProfileComplete(profile)}
                               >
                                 <Download className="h-4 w-4 mr-2" />
-                                Generate Form
+                                Generate PDF
                               </Button>
                             ) : dividend.status === 'filed' ? (
                               <Button size="sm" variant="outline" disabled>
