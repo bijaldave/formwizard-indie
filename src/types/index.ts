@@ -54,9 +54,11 @@ export type UIState = {
 export type FormType = '15G' | '15H';
 
 export type FieldMapping = {
-  xPct: number;
-  yPct: number;
-  wPct: number;
-  hPct: number;
-  lineClamp?: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontSize?: number;
+  align?: 'left' | 'right' | 'center';
+  maxWidth?: number;
 };

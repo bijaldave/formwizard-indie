@@ -2,65 +2,82 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { Profile, DividendRow, FieldMapping } from '@/types';
 import { getAgeFromDOB } from './validation';
 
-// Field mappings for Form 15G - Corrected coordinates based on actual form
+// Field mappings for Form 15G - Precise absolute coordinates (A4 PDF: 595x842 points)
 const FORM_15G_FIELDS: Record<string, FieldMapping> = {
-  name: { xPct: 0.05, yPct: 0.232, wPct: 0.40, hPct: 0.020 },
-  pan: { xPct: 0.48, yPct: 0.232, wPct: 0.15, hPct: 0.020 },
-  dob: { xPct: 0.70, yPct: 0.232, wPct: 0.12, hPct: 0.020 },
-  status_individual: { xPct: 0.65, yPct: 0.252, wPct: 0.015, hPct: 0.015 },
-  status_huf: { xPct: 0.72, yPct: 0.252, wPct: 0.015, hPct: 0.015 },
-  previous_year: { xPct: 0.80, yPct: 0.232, wPct: 0.15, hPct: 0.020 },
-  resident_yes: { xPct: 0.85, yPct: 0.252, wPct: 0.015, hPct: 0.015 },
-  resident_no: { xPct: 0.92, yPct: 0.252, wPct: 0.015, hPct: 0.015 },
-  addr_flat: { xPct: 0.05, yPct: 0.292, wPct: 0.20, hPct: 0.020 },
-  addr_premises: { xPct: 0.27, yPct: 0.292, wPct: 0.20, hPct: 0.020 },
-  addr_street: { xPct: 0.49, yPct: 0.292, wPct: 0.20, hPct: 0.020 },
-  addr_area: { xPct: 0.71, yPct: 0.292, wPct: 0.24, hPct: 0.020 },
-  addr_city: { xPct: 0.05, yPct: 0.312, wPct: 0.20, hPct: 0.020 },
-  addr_state: { xPct: 0.27, yPct: 0.312, wPct: 0.20, hPct: 0.020 },
-  addr_pin: { xPct: 0.49, yPct: 0.312, wPct: 0.15, hPct: 0.020 },
-  email: { xPct: 0.71, yPct: 0.312, wPct: 0.24, hPct: 0.020 },
-  phone: { xPct: 0.05, yPct: 0.332, wPct: 0.25, hPct: 0.020 },
-  assessed_yes: { xPct: 0.42, yPct: 0.352, wPct: 0.015, hPct: 0.015 },
-  assessed_no: { xPct: 0.50, yPct: 0.352, wPct: 0.015, hPct: 0.015 },
-  latest_ay: { xPct: 0.70, yPct: 0.352, wPct: 0.20, hPct: 0.020 },
-  income_nature: { xPct: 0.05, yPct: 0.392, wPct: 0.25, hPct: 0.020 },
-  income_estimated: { xPct: 0.32, yPct: 0.392, wPct: 0.20, hPct: 0.020 },
-  income_total: { xPct: 0.54, yPct: 0.392, wPct: 0.20, hPct: 0.020 },
-  other_forms_count: { xPct: 0.05, yPct: 0.412, wPct: 0.15, hPct: 0.020 },
-  other_forms_amount: { xPct: 0.22, yPct: 0.412, wPct: 0.20, hPct: 0.020 },
-  boid: { xPct: 0.44, yPct: 0.412, wPct: 0.30, hPct: 0.020 },
-  signature: { xPct: 0.70, yPct: 0.85, wPct: 0.25, hPct: 0.060 },
+  // Personal Information Section
+  name: { x: 180, y: 720, width: 240, height: 15, fontSize: 10, maxWidth: 240 },
+  pan: { x: 450, y: 720, width: 100, height: 15, fontSize: 10, maxWidth: 100 },
+  dob: { x: 180, y: 695, width: 80, height: 15, fontSize: 10, maxWidth: 80 },
+  
+  // Status checkboxes
+  status_individual: { x: 120, y: 670, width: 12, height: 12, fontSize: 12 },
+  status_huf: { x: 180, y: 670, width: 12, height: 12, fontSize: 12 },
+  
+  // Previous year and residential status
+  previous_year: { x: 380, y: 695, width: 80, height: 15, fontSize: 10, maxWidth: 80 },
+  resident_yes: { x: 200, y: 645, width: 12, height: 12, fontSize: 12 },
+  resident_no: { x: 300, y: 645, width: 12, height: 12, fontSize: 12 },
+  
+  // Address Fields
+  addr_flat: { x: 150, y: 620, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
+  addr_premises: { x: 300, y: 620, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
+  addr_street: { x: 450, y: 620, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
+  addr_area: { x: 150, y: 595, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
+  addr_city: { x: 300, y: 595, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
+  addr_state: { x: 450, y: 595, width: 100, height: 15, fontSize: 9, maxWidth: 95 },
+  addr_pin: { x: 150, y: 570, width: 80, height: 15, fontSize: 9, maxWidth: 75 },
+  email: { x: 250, y: 570, width: 150, height: 15, fontSize: 9, maxWidth: 145 },
+  phone: { x: 420, y: 570, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
+  
+  // Assessment Details
+  assessed_yes: { x: 520, y: 545, width: 12, height: 12, fontSize: 12 },
+  assessed_no: { x: 550, y: 545, width: 12, height: 12, fontSize: 12 },
+  latest_ay: { x: 200, y: 520, width: 100, height: 15, fontSize: 9, maxWidth: 95 },
+  
+  // Income Details
+  income_nature: { x: 80, y: 495, width: 150, height: 15, fontSize: 9, maxWidth: 145 },
+  income_estimated: { x: 280, y: 495, width: 100, height: 15, fontSize: 10, align: 'right', maxWidth: 95 },
+  income_total: { x: 450, y: 495, width: 100, height: 15, fontSize: 10, align: 'right', maxWidth: 95 },
+  
+  // Previous Forms
+  other_forms_count: { x: 280, y: 470, width: 50, height: 15, fontSize: 9, align: 'center', maxWidth: 45 },
+  other_forms_amount: { x: 450, y: 470, width: 100, height: 15, fontSize: 9, align: 'right', maxWidth: 95 },
+  
+  // BO ID
+  boid: { x: 150, y: 445, width: 200, height: 15, fontSize: 9, maxWidth: 195 },
+  
+  // Signature
+  signature: { x: 420, y: 120, width: 150, height: 50 },
 };
 
-// Field mappings for Form 15H - Part I
+// Field mappings for Form 15H - Absolute coordinates (keeping existing working coordinates converted)
 const FORM_15H_FIELDS: Record<string, FieldMapping> = {
-  name: { xPct: 0.14, yPct: 0.81, wPct: 0.72, hPct: 0.022 },
-  pan: { xPct: 0.14, yPct: 0.77, wPct: 0.30, hPct: 0.022 },
-  dob: { xPct: 0.66, yPct: 0.77, wPct: 0.20, hPct: 0.022 },
-  pyLabel: { xPct: 0.14, yPct: 0.745, wPct: 0.30, hPct: 0.022 },
-  addr_flat: { xPct: 0.14, yPct: 0.715, wPct: 0.30, hPct: 0.022 },
-  addr_prem: { xPct: 0.50, yPct: 0.715, wPct: 0.36, hPct: 0.022 },
-  addr_street: { xPct: 0.14, yPct: 0.688, wPct: 0.30, hPct: 0.022 },
-  addr_area: { xPct: 0.50, yPct: 0.688, wPct: 0.36, hPct: 0.022 },
-  addr_city: { xPct: 0.14, yPct: 0.660, wPct: 0.30, hPct: 0.022 },
-  addr_state: { xPct: 0.50, yPct: 0.660, wPct: 0.20, hPct: 0.022 },
-  addr_pin: { xPct: 0.74, yPct: 0.660, wPct: 0.12, hPct: 0.022 },
-  email: { xPct: 0.14, yPct: 0.633, wPct: 0.30, hPct: 0.022 },
-  phone: { xPct: 0.50, yPct: 0.633, wPct: 0.36, hPct: 0.022 },
-  assessedYes: { xPct: 0.21, yPct: 0.605, wPct: 0.018, hPct: 0.018 },
-  assessedNo: { xPct: 0.26, yPct: 0.605, wPct: 0.018, hPct: 0.018 },
-  latestAY: { xPct: 0.66, yPct: 0.605, wPct: 0.20, hPct: 0.022 },
-  incomeFor: { xPct: 0.14, yPct: 0.577, wPct: 0.30, hPct: 0.022 },
-  incomeTotal: { xPct: 0.50, yPct: 0.550, wPct: 0.36, hPct: 0.022 },
-  otherCnt: { xPct: 0.14, yPct: 0.521, wPct: 0.30, hPct: 0.022 },
-  otherAmt: { xPct: 0.50, yPct: 0.521, wPct: 0.36, hPct: 0.022 },
-  incomeTbl_ident: { xPct: 0.14, yPct: 0.470, wPct: 0.26, hPct: 0.022 },
-  incomeTbl_nature: { xPct: 0.41, yPct: 0.470, wPct: 0.22, hPct: 0.022 },
-  incomeTbl_section: { xPct: 0.64, yPct: 0.470, wPct: 0.07, hPct: 0.022 },
-  incomeTbl_amount: { xPct: 0.73, yPct: 0.470, wPct: 0.13, hPct: 0.022 },
-  boid: { xPct: 0.14, yPct: 0.495, wPct: 0.40, hPct: 0.022 },
-  signature: { xPct: 0.67, yPct: 0.185, wPct: 0.22, hPct: 0.045 },
+  name: { x: 83, y: 688, width: 428, height: 18, fontSize: 10, maxWidth: 425 },
+  pan: { x: 83, y: 648, width: 179, height: 18, fontSize: 10, maxWidth: 175 },
+  dob: { x: 393, y: 648, width: 119, height: 18, fontSize: 10, maxWidth: 115 },
+  pyLabel: { x: 83, y: 625, width: 179, height: 18, fontSize: 10, maxWidth: 175 },
+  addr_flat: { x: 83, y: 602, width: 179, height: 18, fontSize: 9, maxWidth: 175 },
+  addr_prem: { x: 298, y: 602, width: 214, height: 18, fontSize: 9, maxWidth: 210 },
+  addr_street: { x: 83, y: 580, width: 179, height: 18, fontSize: 9, maxWidth: 175 },
+  addr_area: { x: 298, y: 580, width: 214, height: 18, fontSize: 9, maxWidth: 210 },
+  addr_city: { x: 83, y: 557, width: 179, height: 18, fontSize: 9, maxWidth: 175 },
+  addr_state: { x: 298, y: 557, width: 119, height: 18, fontSize: 9, maxWidth: 115 },
+  addr_pin: { x: 440, y: 557, width: 71, height: 18, fontSize: 9, maxWidth: 70 },
+  email: { x: 83, y: 534, width: 179, height: 18, fontSize: 9, maxWidth: 175 },
+  phone: { x: 298, y: 534, width: 214, height: 18, fontSize: 9, maxWidth: 210 },
+  assessedYes: { x: 125, y: 510, width: 11, height: 15, fontSize: 12 },
+  assessedNo: { x: 155, y: 510, width: 11, height: 15, fontSize: 12 },
+  latestAY: { x: 393, y: 510, width: 119, height: 18, fontSize: 9, maxWidth: 115 },
+  incomeFor: { x: 83, y: 486, width: 179, height: 18, fontSize: 9, maxWidth: 175 },
+  incomeTotal: { x: 298, y: 463, width: 214, height: 18, fontSize: 9, maxWidth: 210 },
+  otherCnt: { x: 83, y: 439, width: 179, height: 18, fontSize: 9, maxWidth: 175 },
+  otherAmt: { x: 298, y: 439, width: 214, height: 18, fontSize: 9, maxWidth: 210 },
+  incomeTbl_ident: { x: 83, y: 396, width: 155, height: 18, fontSize: 8, maxWidth: 150 },
+  incomeTbl_nature: { x: 244, y: 396, width: 131, height: 18, fontSize: 8, maxWidth: 125 },
+  incomeTbl_section: { x: 381, y: 396, width: 42, height: 18, fontSize: 8, maxWidth: 40 },
+  incomeTbl_amount: { x: 434, y: 396, width: 77, height: 18, fontSize: 8, maxWidth: 75 },
+  boid: { x: 83, y: 417, width: 238, height: 18, fontSize: 9, maxWidth: 235 },
+  signature: { x: 399, y: 156, width: 131, height: 38 },
 };
 
 export const generatePDF = async (
@@ -95,38 +112,50 @@ export const generatePDF = async (
     return text.replace(/[^\x00-\xFF]/g, '?').replace(/✓/g, 'X');
   };
 
-  // Helper function to draw text in field
+  // Helper function to draw text in field with enhanced alignment
   const drawText = (fieldName: string, text: string) => {
     const field = fields[fieldName];
-    if (!field) return;
+    if (!field || !text) return;
     
-    const x = width * field.xPct;
-    const y = height * (1 - field.yPct - field.hPct);
-    const maxWidth = width * field.wPct;
+    const x = field.x;
+    const y = field.y;
+    const maxWidth = field.maxWidth || field.width;
+    const textAlign = field.align || 'left';
+    const textSize = field.fontSize || fontSize;
+    
+    let actualX = x;
+    
+    // Handle text alignment
+    if (textAlign === 'right') {
+      const textWidth = font.widthOfTextAtSize(sanitizeText(text), textSize);
+      actualX = x + maxWidth - Math.min(textWidth, maxWidth);
+    } else if (textAlign === 'center') {
+      const textWidth = font.widthOfTextAtSize(sanitizeText(text), textSize);
+      actualX = x + (maxWidth - Math.min(textWidth, maxWidth)) / 2;
+    }
     
     firstPage.drawText(sanitizeText(text), {
-      x,
-      y,
-      size: fontSize,
+      x: actualX,
+      y: y,
+      size: textSize,
       font,
       color: rgb(0, 0, 0),
       maxWidth,
     });
   };
   
-  // Helper function to draw checkbox
+  // Helper function to draw checkbox with precise positioning
   const drawCheckbox = (fieldName: string, checked: boolean) => {
     const field = fields[fieldName];
     if (!field || !checked) return;
     
-    const x = width * field.xPct;
-    const y = height * (1 - field.yPct - field.hPct);
-    const size = width * field.wPct;
+    const x = field.x;
+    const y = field.y;
     
     firstPage.drawText('X', {
-      x: x + size/4,
-      y: y + size/4,
-      size: fontSize,
+      x: x + 2,
+      y: y + 2,
+      size: field.fontSize || 12,
       font,
       color: rgb(0, 0, 0),
     });
@@ -194,10 +223,10 @@ export const generatePDF = async (
   // Signature
   if (profile.signature && fields.signature) {
     const signatureField = fields.signature;
-    const x = width * signatureField.xPct;
-    const y = height * (1 - signatureField.yPct - signatureField.hPct);
-    const w = width * signatureField.wPct;
-    const h = height * signatureField.hPct;
+    const x = signatureField.x;
+    const y = signatureField.y;
+    const w = signatureField.width;
+    const h = signatureField.height;
     
     try {
       // Convert base64 signature to image
