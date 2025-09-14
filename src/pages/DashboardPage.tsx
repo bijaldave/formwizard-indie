@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { getHoldings, getDividends, setDividends, getProfile } from '@/lib/storage';
@@ -10,7 +11,7 @@ import { DividendRow, Profile, HoldingRow } from '@/types';
 import { getAgeFromDOB, isProfileComplete } from '@/lib/validation';
 import { generatePDF, downloadPDF } from '@/lib/pdf-generator';
 
-import { ArrowLeft, FileText, Download, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, FileText, Download, AlertCircle, CheckCircle, Clock, Eye, RotateCcw } from 'lucide-react';
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ export const DashboardPage = () => {
   const [dividends, setDividendsState] = useState<DividendRow[]>([]);
   const [profile, setProfileState] = useState<Partial<Profile>>({});
   const [isGenerating, setIsGenerating] = useState(false);
+  const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
+  const [currentPdfUrl, setCurrentPdfUrl] = useState<string>('');
 
   useEffect(() => {
     const savedHoldings = getHoldings();
@@ -86,6 +89,51 @@ export const DashboardPage = () => {
         title: `Form ${formType} downloaded successfully!`,
         description: `Downloaded for ${dividend.symbol} - fill in dividend details manually`,
       });
+      
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast({
+        variant: 'destructive',
+        title: 'Failed to generate form',
+        description: errorMessage
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleViewPDF = async (dividend: DividendRow) => {
+    if (!isProfileComplete(profile)) {
+      toast({
+        variant: 'destructive',
+        title: 'Please complete your profile first',
+        description: 'All fields in your profile are required to generate forms.'
+      });
+      navigate('/profile');
+      return;
+    }
+
+    setIsGenerating(true);
+
+    // Create dividend data with default values
+    const dividendData: DividendRow = {
+      symbol: dividend.symbol,
+      qty: dividend.qty,
+      dps: 0,
+      total: 0,
+      status: dividend.status // Keep existing status
+    };
+
+    try {
+      // Generate PDF
+      const pdfBytes = await generatePDF(profile as Profile, dividendData);
+      
+      // Create blob URL for viewing
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      setCurrentPdfUrl(url);
+      setPdfViewerOpen(true);
       
     } catch (error) {
       console.error('PDF generation error:', error);
@@ -235,21 +283,39 @@ export const DashboardPage = () => {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {dividend.status === 'filed' ? (
-                              <Button size="sm" variant="outline" disabled>
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Filed
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                onClick={() => handleDownloadPDF(dividend)}
-                                disabled={!isProfileComplete(profile) || isGenerating}
-                              >
-                                <Download className="h-4 w-4 mr-2" />
-                                {isGenerating ? 'Downloading...' : 'Download PDF'}
-                              </Button>
-                            )}
+                            <div className="flex gap-2">
+                              {dividend.status === 'filed' ? (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleViewPDF(dividend)}
+                                    disabled={!isProfileComplete(profile) || isGenerating}
+                                  >
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    View PDF
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleDownloadPDF(dividend)}
+                                    disabled={!isProfileComplete(profile) || isGenerating}
+                                  >
+                                    <RotateCcw className="h-4 w-4 mr-2" />
+                                    Re-file
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleDownloadPDF(dividend)}
+                                  disabled={!isProfileComplete(profile) || isGenerating}
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  {isGenerating ? 'Downloading...' : 'Download PDF'}
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -298,6 +364,25 @@ export const DashboardPage = () => {
         </div>
       </div>
 
+      {/* PDF Viewer Dialog */}
+      <Dialog open={pdfViewerOpen} onOpenChange={setPdfViewerOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Generated Form Preview</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-[70vh]">
+            {currentPdfUrl && (
+              <iframe
+                src={currentPdfUrl}
+                width="100%"
+                height="600px"
+                style={{ border: 'none' }}
+                title="PDF Preview"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
