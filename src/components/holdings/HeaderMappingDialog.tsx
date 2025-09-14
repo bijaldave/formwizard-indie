@@ -21,16 +21,6 @@ const FIELD_DESCRIPTIONS: Record<CanonicalKey, { label: string; description: str
     description: 'The ticker symbol used for trading',
     example: 'RELIANCE, TCS, INFY'
   },
-  security_name: {
-    label: 'Security Name',
-    description: 'Full company or security name',
-    example: 'Reliance Industries Ltd'
-  },
-  isin: {
-    label: 'ISIN Code',
-    description: 'International Security Identification Number',
-    example: 'INE002A01018'
-  },
   quantity: {
     label: 'Quantity',
     description: 'Number of shares held',
@@ -64,7 +54,7 @@ export function HeaderMappingDialog({ open, onClose, requiresMapping, onConfirm 
   };
 
   const handleConfirm = () => {
-    const requiredFields: CanonicalKey[] = ['symbol', 'security_name', 'quantity'];
+    const requiredFields: CanonicalKey[] = ['symbol', 'quantity'];
     const missingFields = requiredFields.filter(field => !mapping[field]);
     
     if (missingFields.length > 0) {
@@ -94,7 +84,7 @@ export function HeaderMappingDialog({ open, onClose, requiresMapping, onConfirm 
         <div className="space-y-6">
           {requiresMapping.ambiguousFields.map(({ canonical, candidates }) => {
             const fieldInfo = FIELD_DESCRIPTIONS[canonical];
-            const isRequired = ['symbol', 'security_name', 'quantity'].includes(canonical);
+            const isRequired = ['symbol', 'quantity'].includes(canonical);
             const hasError = errors.has(canonical);
             
             return (
@@ -103,7 +93,6 @@ export function HeaderMappingDialog({ open, onClose, requiresMapping, onConfirm 
                   <CardTitle className="text-base flex items-center gap-2">
                     {fieldInfo.label}
                     {isRequired && <Badge variant="destructive" className="text-xs">Required</Badge>}
-                    {!isRequired && <Badge variant="secondary" className="text-xs">Optional</Badge>}
                   </CardTitle>
                   <p className="text-sm text-muted-foreground">
                     {fieldInfo.description}

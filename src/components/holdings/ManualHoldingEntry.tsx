@@ -18,26 +18,13 @@ export function ManualHoldingEntry({ onHoldingAdded, isOpen, onToggle }: ManualH
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     symbol: '',
-    security_name: '',
-    isin: '',
     quantity: ''
   });
-
-  const validateISIN = (isin: string): boolean => {
-    if (!isin) return true; // ISIN is optional
-    const cleaned = isin.trim().toUpperCase();
-    return /^IN[A-Z0-9]{10}$/.test(cleaned);
-  };
 
   const handleAdd = () => {
     // Validate required fields
     if (!formData.symbol.trim()) {
       toast({ variant: 'destructive', title: 'Trading symbol is required' });
-      return;
-    }
-
-    if (!formData.security_name.trim()) {
-      toast({ variant: 'destructive', title: 'Security name is required' });
       return;
     }
 
@@ -53,20 +40,8 @@ export function ManualHoldingEntry({ onHoldingAdded, isOpen, onToggle }: ManualH
       return;
     }
 
-    // Validate ISIN if provided
-    if (formData.isin.trim() && !validateISIN(formData.isin)) {
-      toast({ 
-        variant: 'destructive', 
-        title: 'Invalid ISIN format',
-        description: 'ISIN should be 12 characters starting with IN (e.g., INE002A01018)'
-      });
-      return;
-    }
-
     const newHolding: ParsedHolding = {
       symbol: formData.symbol.trim().toUpperCase(),
-      security_name: formData.security_name.trim(),
-      isin: formData.isin.trim().toUpperCase(),
       quantity
     };
 
@@ -75,8 +50,6 @@ export function ManualHoldingEntry({ onHoldingAdded, isOpen, onToggle }: ManualH
     // Reset form
     setFormData({
       symbol: '',
-      security_name: '',
-      isin: '',
       quantity: ''
     });
 
@@ -121,36 +94,6 @@ export function ManualHoldingEntry({ onHoldingAdded, isOpen, onToggle }: ManualH
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   Stock ticker symbol (e.g., RELIANCE, TCS, INFY)
-                </p>
-              </div>
-              
-              <div>
-                <Label htmlFor="manual-security-name">Security Name *</Label>
-                <Input
-                  id="manual-security-name"
-                  value={formData.security_name}
-                  onChange={(e) => handleInputChange('security_name', e.target.value)}
-                  placeholder="Reliance Industries Ltd"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Full company or security name
-                </p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="manual-isin">ISIN Code</Label>
-                <Input
-                  id="manual-isin"
-                  value={formData.isin}
-                  onChange={(e) => handleInputChange('isin', e.target.value)}
-                  placeholder="INE002A01018"
-                  className="font-mono"
-                  maxLength={12}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  12-character code starting with IN (optional)
                 </p>
               </div>
               

@@ -1,11 +1,9 @@
 import * as XLSX from 'xlsx';
 
-export type CanonicalKey = 'symbol' | 'security_name' | 'isin' | 'quantity';
+export type CanonicalKey = 'symbol' | 'quantity';
 
 export interface ParsedHolding {
   symbol: string;
-  security_name: string;
-  isin: string;
   quantity: number;
 }
 
@@ -40,16 +38,6 @@ const SYNONYMS: Record<CanonicalKey, string[]> = {
     'symbol', 'ticker', 'trading symbol', 'security symbol', 'scrip', 'scrip code', 
     'code', 'stock code', 'share code', 'instrument code', 'security code',
     'script', 'script code', 'nse symbol', 'bse code', 'trading code'
-  ],
-  security_name: [
-    'security name', 'scrip name', 'company', 'company name', 'security', 
-    'instrument', 'name', 'stock name', 'share name', 'issuer name',
-    'script name', 'company_name', 'instrument name', 'security_name',
-    'issue name', 'desc', 'description', 'full name'
-  ],
-  isin: [
-    'isin', 'isin code', 'isin_no', 'isin number', 'isin_code',
-    'international security identification number', 'isin no'
   ],
   quantity: [
     'qty', 'quantity', 'quantity held', 'quantity available', 'net qty', 
@@ -108,14 +96,6 @@ function jaccard(set1: Set<string>, set2: Set<string>): number {
 }
 
 function patternBoost(canonical: CanonicalKey, sampleValues: string[]): number {
-  if (canonical === 'isin') {
-    const isinPattern = /^IN[A-Z0-9]{10}$/;
-    const matches = sampleValues.filter(v => 
-      v && isinPattern.test(String(v).trim().toUpperCase())
-    ).length;
-    return matches > 0 ? 0.3 : 0;
-  }
-  
   if (canonical === 'quantity') {
     const qtyPattern = /^-?\s*[\d,]+(\.\d+)?\s*$/;
     const matches = sampleValues.filter(v => 
@@ -286,8 +266,7 @@ function deduplicateHoldings(holdings: ParsedHolding[]): ParsedHolding[] {
   const map = new Map<string, ParsedHolding>();
   
   holdings.forEach(holding => {
-    const key = holding.isin || 
-                `${holding.symbol}::${holding.security_name}`.toUpperCase();
+    const key = holding.symbol.toUpperCase();
     
     if (map.has(key)) {
       const existing = map.get(key)!;
@@ -378,8 +357,6 @@ export function parseHoldingsFile(file: File): Promise<ParseResult> {
         // Calculate scores for each canonical field
         const fieldMappings: Record<CanonicalKey, Array<{ column: string; score: number; preview: string[] }>> = {
           symbol: [],
-          security_name: [],
-          isin: [],
           quantity: []
         };
         
@@ -451,7 +428,7 @@ export function parseHoldingsFile(file: File): Promise<ParseResult> {
         }
         
         // Validate we have minimum required fields
-        const requiredFields: CanonicalKey[] = ['symbol', 'security_name', 'quantity'];
+        const requiredFields: CanonicalKey[] = ['symbol', 'quantity'];
         const missingFields = requiredFields.filter(field => !mapping[field]);
         
         if (missingFields.length > 0) {
@@ -474,13 +451,10 @@ export function parseHoldingsFile(file: File): Promise<ParseResult> {
           });
           
           const symbol = String(rowObj[mapping.symbol!] || '').trim().toUpperCase();
-          const securityName = String(rowObj[mapping.security_name!] || '').trim();
-          const isinRaw = String(rowObj[mapping.isin!] || '').trim();
           const quantityRaw = rowObj[mapping.quantity!];
           
-          if (!symbol || !securityName || !quantityRaw) continue;
+          if (!symbol || !quantityRaw) continue;
           
-          const isin = validateISIN(isinRaw);
           const originalQtyStr = String(quantityRaw);
           const quantity = toIntQuantity(quantityRaw);
           
@@ -495,8 +469,6 @@ export function parseHoldingsFile(file: File): Promise<ParseResult> {
           
           results.push({
             symbol,
-            security_name: securityName,
-            isin,
             quantity
           });
         }
@@ -573,13 +545,10 @@ export function applyManualMapping(
         });
         
         const symbol = String(rowObj[userMapping.symbol] || '').trim().toUpperCase();
-        const securityName = String(rowObj[userMapping.security_name] || '').trim();
-        const isinRaw = String(rowObj[userMapping.isin] || '').trim();
         const quantityRaw = rowObj[userMapping.quantity];
         
-        if (!symbol || !securityName || !quantityRaw) return;
+        if (!symbol || !quantityRaw) return;
         
-        const isin = validateISIN(isinRaw);
         const originalQtyStr = String(quantityRaw);
         const quantity = toIntQuantity(quantityRaw);
         
@@ -594,8 +563,6 @@ export function applyManualMapping(
         
         results.push({
           symbol,
-          security_name: securityName,
-          isin,
           quantity
         });
       });

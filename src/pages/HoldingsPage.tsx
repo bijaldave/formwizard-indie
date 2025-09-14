@@ -28,8 +28,6 @@ export const HoldingsPage = () => {
     // Convert old HoldingRow format to new ParsedHolding format
     const convertedHoldings: ParsedHolding[] = savedHoldings.map(holding => ({
       symbol: holding.symbol,
-      security_name: holding.company,
-      isin: holding.isin,
       quantity: holding.qty
     }));
     setHoldingsState(convertedHoldings);
@@ -50,8 +48,6 @@ export const HoldingsPage = () => {
     // Save to localStorage (convert to old format for compatibility)
     const legacyHoldings = result.holdings.map(h => ({
       symbol: h.symbol,
-      company: h.security_name,
-      isin: h.isin,
       qty: h.quantity
     }));
     setHoldings(legacyHoldings);
@@ -59,8 +55,6 @@ export const HoldingsPage = () => {
     // Initialize dividends
     const dividends: DividendRow[] = result.holdings.map(holding => ({
       symbol: holding.symbol,
-      company: holding.security_name,
-      isin: holding.isin,
       qty: holding.quantity,
       dps: 0,
       total: 0,
@@ -98,8 +92,6 @@ export const HoldingsPage = () => {
     // Save to localStorage (convert to old format for compatibility)
     const legacyHoldings = updatedHoldings.map(h => ({
       symbol: h.symbol,
-      company: h.security_name,
-      isin: h.isin,
       qty: h.quantity
     }));
     setHoldings(legacyHoldings);
@@ -108,8 +100,6 @@ export const HoldingsPage = () => {
     const currentDividends = getDividends();
     const updatedDividends = [...currentDividends, {
       symbol: newHolding.symbol,
-      company: newHolding.security_name,
-      isin: newHolding.isin,
       qty: newHolding.quantity,
       dps: 0,
       total: 0,

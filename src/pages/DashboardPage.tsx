@@ -72,7 +72,7 @@ export const DashboardPage = () => {
       
       // Update dividend status to filed
       const updatedDividends = dividends.map(d => 
-        d.symbol === dividend.symbol && d.isin === dividend.isin
+        d.symbol === dividend.symbol
           ? { ...d, status: 'filed' as const }
           : d
       );
@@ -208,7 +208,6 @@ export const DashboardPage = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Symbol</TableHead>
-                        <TableHead>ISIN</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Action</TableHead>
@@ -216,15 +215,9 @@ export const DashboardPage = () => {
                     </TableHeader>
                     <TableBody>
                       {dividends.map((dividend, index) => (
-                        <TableRow key={dividend.isin || dividend.symbol}>
+                        <TableRow key={dividend.symbol}>
                           <TableCell>
                             <div className="font-medium">{dividend.symbol}</div>
-                            <div className="text-sm text-muted-foreground">{dividend.company}</div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className="font-mono text-xs">
-                              {dividend.isin || '—'}
-                            </Badge>
                           </TableCell>
                           <TableCell className="text-right font-medium">
                             {dividend.qty.toLocaleString()}

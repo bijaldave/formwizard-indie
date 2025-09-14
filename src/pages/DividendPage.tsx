@@ -105,16 +105,13 @@ export const DividendPage = () => {
             {/* Dividend Cards */}
             <div className="space-y-4">
               {dividends.map((dividend, index) => (
-                <Card key={dividend.isin || dividend.symbol} className="overflow-hidden">
+                <Card key={dividend.symbol} className="overflow-hidden">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle className="text-lg">
-                          {dividend.symbol} · {dividend.company}
+                          {dividend.symbol}
                         </CardTitle>
-                        {dividend.isin && (
-                          <p className="text-sm text-muted-foreground mt-1">ISIN: {dividend.isin}</p>
-                        )}
                       </div>
                       <div className="flex items-center space-x-2">
                         <Label htmlFor={`ready-${index}`} className="text-sm">

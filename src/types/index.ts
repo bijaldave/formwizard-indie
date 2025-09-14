@@ -26,9 +26,7 @@ export type Profile = {
 };
 
 export type DividendRow = {
-  isin: string;
   symbol: string;
-  company: string;
   qty: number;
   dps: number;
   total: number;
@@ -36,9 +34,7 @@ export type DividendRow = {
 };
 
 export type HoldingRow = {
-  isin: string;
   symbol: string;
-  company: string;
   qty: number;
 };
 
