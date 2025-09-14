@@ -6,18 +6,24 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { getDividends, setDividends } from '@/lib/storage';
-import { DividendRow } from '@/types';
-import { ArrowLeft, DollarSign, Calculator } from 'lucide-react';
+import { getDividends, setDividends, getProfile } from '@/lib/storage';
+import { DividendRow, Profile } from '@/types';
+import { ArrowLeft, DollarSign, Calculator, FileText, Upload } from 'lucide-react';
+import { fillForm15G, profileToForm15GData } from '@/lib/pdf/fill15G';
 
 export const DividendPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [dividends, setDividendsState] = useState<DividendRow[]>([]);
+  const [profile, setProfile] = useState<Partial<Profile>>({});
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     const savedDividends = getDividends();
+    const savedProfile = getProfile();
     setDividendsState(savedDividends);
+    setProfile(savedProfile);
   }, []);
 
   const handleDividendChange = (index: number, dps: string) => {
@@ -52,6 +58,117 @@ export const DividendPage = () => {
       return;
     }
     navigate('/dashboard');
+  };
+
+  const handleTemplateUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast({
+          variant: 'destructive',
+          title: 'Invalid file type',
+          description: 'Please upload a PDF file.'
+        });
+        return;
+      }
+      setTemplateFile(file);
+      toast({
+        title: 'Template uploaded',
+        description: 'Form 15G template ready for processing.'
+      });
+    }
+  };
+
+  const validateProfileData = (): string[] => {
+    const missing: string[] = [];
+    const requiredFields: (keyof Profile)[] = [
+      'name', 'pan', 'status', 'residential_status', 'addr_flat', 'addr_premises',
+      'addr_street', 'addr_area', 'addr_city', 'addr_state', 'addr_pin',
+      'email', 'phone', 'assessed_to_tax', 'latest_ay', 'fy_label',
+      'income_total_fy', 'boid'
+    ];
+
+    requiredFields.forEach(field => {
+      if (!profile[field]) {
+        missing.push(field.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()));
+      }
+    });
+
+    return missing;
+  };
+
+  const handleGeneratePDF = async () => {
+    // Validate data completeness
+    const missingFields = validateProfileData();
+    if (missingFields.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Incomplete Profile',
+        description: `Please complete your profile. Missing: ${missingFields.join(', ')}`
+      });
+      return;
+    }
+
+    const readyDividends = dividends.filter(d => d.status === 'ready');
+    if (readyDividends.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'No Ready Dividends',
+        description: 'Please mark at least one stock as ready before generating Form 15G.'
+      });
+      return;
+    }
+
+    if (!templateFile) {
+      toast({
+        variant: 'destructive',
+        title: 'Template Required',
+        description: 'Please upload the Form 15G template PDF first.'
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+
+    try {
+      // Check for debug mode
+      const urlParams = new URLSearchParams(window.location.search);
+      const debugMode = urlParams.get('debug') === '1';
+
+      // Generate PDF
+      const form15GData = profileToForm15GData(profile as Profile, readyDividends);
+      const pdfBytes = await fillForm15G(templateFile, form15GData, debugMode);
+
+      // Download the generated PDF
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      const sanitizedName = profile.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'User';
+      const date = new Date().toISOString().split('T')[0];
+      link.download = `Form15G_${sanitizedName}_${date}.pdf`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Form 15G Generated',
+        description: 'Your Form 15G has been generated and downloaded successfully.'
+      });
+
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Generation Failed',
+        description: error instanceof Error ? error.message : 'Failed to generate Form 15G. Please try again.'
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const readyCount = dividends.filter(d => d.status === 'ready').length;
@@ -183,6 +300,72 @@ export const DividendPage = () => {
                   <Button onClick={() => navigate('/holdings')}>
                     Go to Holdings
                   </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Form 15G Generation */}
+            {dividends.length > 0 && readyCount > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Generate Form 15G
+                  </CardTitle>
+                  <CardDescription>
+                    Generate your Form 15G with the dividend information you've marked as ready.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Template Upload */}
+                  <div>
+                    <Label htmlFor="template-upload" className="text-sm font-medium">
+                      Upload Form 15G Template PDF
+                    </Label>
+                    <div className="flex items-center gap-4 mt-2">
+                      <Input
+                        id="template-upload"
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleTemplateUpload}
+                        className="flex-1"
+                      />
+                      {templateFile && (
+                        <div className="text-sm text-success">
+                          ✓ {templateFile.name}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Upload the official Form 15G PDF template. Only the calibrated template will work correctly.
+                    </p>
+                  </div>
+
+                  {/* Generation Button */}
+                  <div className="flex gap-4">
+                    <Button
+                      onClick={handleGeneratePDF}
+                      disabled={isGenerating || !templateFile}
+                      className="flex-1"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Upload className="h-4 w-4 mr-2 animate-spin" />
+                          Generating PDF...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4 mr-2" />
+                          Generate Form 15G ({readyCount} stocks, ₹{totalDividend.toLocaleString()})
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* Debug Mode Info */}
+                  <div className="text-xs text-muted-foreground">
+                    💡 Add <code>?debug=1</code> to the URL to enable debug overlay for troubleshooting alignment issues.
+                  </div>
                 </CardContent>
               </Card>
             )}
