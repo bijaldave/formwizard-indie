@@ -50,15 +50,3 @@ export type UIState = {
   currentPage: string;
   debugMode: boolean;
 };
-
-export type FormType = '15G' | '15H';
-
-export type FieldMapping = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  fontSize?: number;
-  align?: 'left' | 'right' | 'center';
-  maxWidth?: number;
-};

@@ -10,7 +10,7 @@ import { ProfilePage } from "@/pages/ProfilePage";
 import { HoldingsPage } from "@/pages/HoldingsPage";
 import { DividendPage } from "@/pages/DividendPage";
 import { DashboardPage } from "@/pages/DashboardPage";
-import CoordinateExtractorPage from "@/pages/CoordinateExtractorPage";
+
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,7 +28,7 @@ const App = () => (
           <Route path="/holdings" element={<ProtectedRoute><HoldingsPage /></ProtectedRoute>} />
           <Route path="/dividends" element={<ProtectedRoute><DividendPage /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/coordinate-extractor" element={<CoordinateExtractorPage />} />
+          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

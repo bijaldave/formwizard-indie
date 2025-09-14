@@ -9,18 +9,14 @@ import { useToast } from '@/hooks/use-toast';
 import { getHoldings, getDividends, setDividends, getProfile } from '@/lib/storage';
 import { DividendRow, Profile, HoldingRow } from '@/types';
 import { getAgeFromDOB, isProfileComplete } from '@/lib/validation';
-import { generatePDF, downloadPDF } from '@/lib/pdf-generator';
 
-import { ArrowLeft, FileText, Download, AlertCircle, CheckCircle, Clock, Eye, RotateCcw } from 'lucide-react';
+import { ArrowLeft, FileText, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [dividends, setDividendsState] = useState<DividendRow[]>([]);
   const [profile, setProfileState] = useState<Partial<Profile>>({});
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
-  const [currentPdfUrl, setCurrentPdfUrl] = useState<string>('');
 
   useEffect(() => {
     const savedHoldings = getHoldings();
@@ -43,110 +39,6 @@ export const DashboardPage = () => {
     setProfileState(savedProfile);
   }, []);
 
-  const handleDownloadPDF = async (dividend: DividendRow) => {
-    if (!isProfileComplete(profile)) {
-      toast({
-        variant: 'destructive',
-        title: 'Please complete your profile first',
-        description: 'All fields in your profile are required to generate forms.'
-      });
-      navigate('/profile');
-      return;
-    }
-
-    setIsGenerating(true);
-
-    // Create dividend data with default values
-    const dividendData: DividendRow = {
-      symbol: dividend.symbol,
-      qty: dividend.qty,
-      dps: 0,
-      total: 0,
-      status: 'filed'
-    };
-
-    try {
-      // Determine form type based on age
-      const age = getAgeFromDOB(profile.dob_ddmmyyyy || '');
-      const formType = age < 60 ? '15G' : '15H';
-
-      const fileName = `Form${formType}_PartA_${profile.fy_label}_${profile.name?.replace(/\s+/g, '_')}_${dividend.symbol}.pdf`;
-      
-      // Generate PDF
-      const pdfBytes = await generatePDF(profile as Profile, dividendData);
-      
-      // Download PDF
-      downloadPDF(pdfBytes, fileName);
-      
-      // Update dividend status to filed
-      const updatedDividends = dividends.map(d => 
-        d.symbol === dividend.symbol ? dividendData : d
-      );
-      setDividendsState(updatedDividends);
-      setDividends(updatedDividends);
-
-      toast({
-        title: `Form ${formType} downloaded successfully!`,
-        description: `Downloaded for ${dividend.symbol} - fill in dividend details manually`,
-      });
-      
-    } catch (error) {
-      console.error('PDF generation error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast({
-        variant: 'destructive',
-        title: 'Failed to generate form',
-        description: errorMessage
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleViewPDF = async (dividend: DividendRow) => {
-    if (!isProfileComplete(profile)) {
-      toast({
-        variant: 'destructive',
-        title: 'Please complete your profile first',
-        description: 'All fields in your profile are required to generate forms.'
-      });
-      navigate('/profile');
-      return;
-    }
-
-    setIsGenerating(true);
-
-    // Create dividend data with default values
-    const dividendData: DividendRow = {
-      symbol: dividend.symbol,
-      qty: dividend.qty,
-      dps: 0,
-      total: 0,
-      status: dividend.status // Keep existing status
-    };
-
-    try {
-      // Generate PDF
-      const pdfBytes = await generatePDF(profile as Profile, dividendData);
-      
-      // Create blob URL for viewing
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      setCurrentPdfUrl(url);
-      setPdfViewerOpen(true);
-      
-    } catch (error) {
-      console.error('PDF generation error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast({
-        variant: 'destructive',
-        title: 'Failed to generate form',
-        description: errorMessage
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   const getStatusIcon = (status: DividendRow['status']) => {
     switch (status) {
@@ -198,7 +90,7 @@ export const DashboardPage = () => {
                   Holdings Dashboard
                 </CardTitle>
                 <CardDescription>
-                  Generate Form {formType} for your dividend-paying stocks
+                  Manage your dividend-paying stocks
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -253,7 +145,7 @@ export const DashboardPage = () => {
               <CardHeader>
                 <CardTitle>Your Holdings</CardTitle>
                 <CardDescription>
-                  Click "Download PDF" to create Form {formType} for each stock
+                  View and manage your stock holdings
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -264,7 +156,7 @@ export const DashboardPage = () => {
                         <TableHead>Symbol</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Action</TableHead>
+                        
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -282,41 +174,6 @@ export const DashboardPage = () => {
                               {getStatusBadge(dividend.status)}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              {dividend.status === 'filed' ? (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleViewPDF(dividend)}
-                                    disabled={!isProfileComplete(profile) || isGenerating}
-                                  >
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    View PDF
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleDownloadPDF(dividend)}
-                                    disabled={!isProfileComplete(profile) || isGenerating}
-                                  >
-                                    <RotateCcw className="h-4 w-4 mr-2" />
-                                    Re-file
-                                  </Button>
-                                </>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleDownloadPDF(dividend)}
-                                  disabled={!isProfileComplete(profile) || isGenerating}
-                                >
-                                  <Download className="h-4 w-4 mr-2" />
-                                  {isGenerating ? 'Downloading...' : 'Download PDF'}
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -326,7 +183,7 @@ export const DashboardPage = () => {
                     <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-medium mb-2">No Holdings Found</h3>
                     <p className="text-muted-foreground mb-4">
-                      Upload your holdings to get started with form generation.
+                      Upload your holdings to get started.
                     </p>
                     <Button onClick={() => navigate('/holdings')}>
                       Upload Holdings
@@ -364,25 +221,6 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      {/* PDF Viewer Dialog */}
-      <Dialog open={pdfViewerOpen} onOpenChange={setPdfViewerOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>Generated Form Preview</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-[70vh]">
-            {currentPdfUrl && (
-              <iframe
-                src={currentPdfUrl}
-                width="100%"
-                height="600px"
-                style={{ border: 'none' }}
-                title="PDF Preview"
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
