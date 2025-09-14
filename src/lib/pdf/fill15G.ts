@@ -7,6 +7,13 @@ import { templateManager } from './templateManager';
 import { renderDebugOverlay } from './debug';
 import { CoordinateMap, validateAnchors } from './coordDetection';
 
+/**
+ * Format currency as ASCII-compatible "Rs. X,XXX.XX" format
+ */
+function formatCurrencyASCII(amount: number): string {
+  return `Rs. ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export interface Form15GData {
   name: string;
   pan: string;
@@ -77,30 +84,14 @@ export function profileToForm15GData(profile: Profile, dividend: DividendRow): F
     assessed_yes: profile.assessed_to_tax === 'Yes',
     assessed_no: profile.assessed_to_tax === 'No',
     latest_ay: profile.assessmentYearPrevious || profile.latest_ay || assessmentYear,
-    estimated_income_current: estimatedIncomeCurrent.toLocaleString('en-IN', { 
-      style: 'currency', 
-      currency: 'INR',
-      minimumFractionDigits: 2 
-    }),
-    estimated_income_total: estimatedIncomeTotal.toLocaleString('en-IN', { 
-      style: 'currency', 
-      currency: 'INR',
-      minimumFractionDigits: 2 
-    }),
+    estimated_income_current: formatCurrencyASCII(estimatedIncomeCurrent),
+    estimated_income_total: formatCurrencyASCII(estimatedIncomeTotal),
     boid: profile.boid,
     nature_income: 'Dividend',
     section: '194',
-    dividend_amount: dividend.total.toLocaleString('en-IN', { 
-      style: 'currency', 
-      currency: 'INR',
-      minimumFractionDigits: 2 
-    }),
+    dividend_amount: formatCurrencyASCII(dividend.total),
     form_count: formCount.toString(),
-    form_amount: formAmount.toLocaleString('en-IN', { 
-      style: 'currency', 
-      currency: 'INR',
-      minimumFractionDigits: 2 
-    }),
+    form_amount: formatCurrencyASCII(formAmount),
     signature: profile.signature,
     place_date: `Mumbai, ${currentDate.toLocaleDateString('en-IN')}`,
     declaration_fy_end: profile.financialYearEnd || `31-03-${currentYear}`,
