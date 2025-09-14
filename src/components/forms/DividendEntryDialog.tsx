@@ -30,7 +30,7 @@ export const DividendEntryDialog = ({
       toast({
         variant: 'destructive',
         title: 'Invalid Input',
-        description: 'Please enter a valid dividend per share amount.'
+        description: 'Please enter a valid dividend per share amount greater than 0.'
       });
       return;
     }

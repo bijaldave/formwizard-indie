@@ -9,12 +9,7 @@ import { getHoldings, getDividends, setDividends, getProfile, getGeneratedForms,
 import { DividendRow, Profile, GeneratedForm } from '@/types';
 import { isProfileComplete } from '@/lib/validation';
 import { getFormType, getFormDisplayName, calculateAge } from '@/lib/utils/ageUtils';
-import { fillForm15G, profileToForm15GData } from '@/lib/pdf/fill15G';
-import { fillForm15H, profileToForm15HData } from '@/lib/pdf/fill15H';
-import { fillForm15GAcroForm } from '@/lib/pdf/acroFormFiller';
-import { fillForm15HAcroForm } from '@/lib/pdf/acroFormFiller';
-import { validateAcroFormShell } from '@/lib/pdf/calibration';
-import { loadEmbeddedTemplate } from '@/lib/templateLoader';
+import { generateForm } from '@/lib/pdf/fillAcro';
 import { DividendEntryDialog } from '@/components/forms/DividendEntryDialog';
 import { FormPreviewDialog } from '@/components/forms/FormPreviewDialog';
 
@@ -112,59 +107,15 @@ export const DashboardPage = () => {
 
     setIsGenerating(true);
 
-    console.log('Starting PDF generation with data:', {
-      dividend,
-      profile,
-      formType: getFormType(profile as Profile)
-    });
-
     try {
-      const formType = getFormType(profile as Profile);
-      const templateFile = await loadEmbeddedTemplate(formType);
-
-      // Check for debug mode
-      const urlParams = new URLSearchParams(window.location.search);
-      const debugMode = urlParams.get('debug') === '1';
-
-      let pdfBytes: Uint8Array;
-      let formDisplayName: string;
-
-      // Try AcroForm approach first, fallback to coordinate-based approach
-      const acroFormValidation = await validateAcroFormShell(templateFile, formType.toUpperCase());
-
-      if (acroFormValidation.valid) {
-        console.log('Using AcroForm approach for PDF generation');
-        if (formType === '15g') {
-          const form15GData = profileToForm15GData(profile as Profile, dividend);
-          pdfBytes = await fillForm15GAcroForm(templateFile, form15GData);
-          formDisplayName = 'Form 15G';
-        } else {
-          const form15HData = profileToForm15HData(profile as Profile, dividend);
-          pdfBytes = await fillForm15HAcroForm(templateFile, form15HData);
-          formDisplayName = 'Form 15H';
-        }
-      } else {
-        console.log('Using coordinate-based approach for PDF generation:', acroFormValidation.reason);
-        if (formType === '15g') {
-          const form15GData = profileToForm15GData(profile as Profile, dividend);
-          pdfBytes = await fillForm15G(templateFile, form15GData, debugMode);
-          formDisplayName = 'Form 15G';
-        } else {
-          const form15HData = profileToForm15HData(profile as Profile, dividend);
-          pdfBytes = await fillForm15H(templateFile, form15HData, debugMode);
-          formDisplayName = 'Form 15H';
-        }
-      }
-
-      // Create downloadable blob
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      // Use new clean AcroForm approach
+      const { blob, formType, filename } = await generateForm(profile as Profile, dividend);
+      
+      // Download the file
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      
-      const sanitizedName = profile.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'User';
-      const date = new Date().toISOString().split('T')[0];
-      link.download = `${formType.toUpperCase()}_${dividend.symbol}_${sanitizedName}_${date}.pdf`;
+      link.download = filename;
       
       document.body.appendChild(link);
       link.click();
@@ -176,7 +127,7 @@ export const DashboardPage = () => {
         id: `form-${Date.now()}-${dividend.symbol}`,
         type: formType === '15g' ? 'Form15G' : 'Form15H',
         generatedAt: new Date().toISOString(),
-        filename: `${formType.toUpperCase()}_${dividend.symbol}_${sanitizedName}_${date}.pdf`,
+        filename,
         dividend: dividend,
         profileSnapshot: profile as Profile,
         totalAmount: dividend.total,
@@ -200,6 +151,7 @@ export const DashboardPage = () => {
       setDividendsState(updatedDividends);
       setDividends(updatedDividends);
 
+      const formDisplayName = getFormDisplayName(formType);
       toast({
         title: `${formDisplayName} Generated`,
         description: `Your ${formDisplayName} for ${dividend.symbol} has been generated and downloaded successfully.`
@@ -230,8 +182,10 @@ export const DashboardPage = () => {
   };
 
   const handleRefileFormBySymbol = async (symbol: string) => {
-    const d = dividends.find(x => x.symbol === symbol);
-    if (d) await handleGenerateForm(d);
+    const dividend = dividends.find(d => d.symbol === symbol);
+    if (dividend) {
+      await handleGenerateForm(dividend);
+    }
   };
 
   const getActionButton = (dividend: DividendRow) => {
@@ -386,14 +340,7 @@ export const DashboardPage = () => {
                         Edit Profile
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => navigate('/calibrate/15G')}>
-                        <Settings className="h-4 w-4 mr-2" />
-                        Calibrate Form 15G
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate('/calibrate/15H')}>
-                        <Settings className="h-4 w-4 mr-2" />
-                        Calibrate Form 15H
-                      </DropdownMenuItem>
+                      {/* Calibration menu items removed - using AcroForm templates now */}
                       <DropdownMenuSeparator />
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
