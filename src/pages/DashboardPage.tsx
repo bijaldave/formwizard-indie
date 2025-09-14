@@ -77,17 +77,6 @@ export const DashboardPage = () => {
       const age = getAgeFromDOB(profile.dob_ddmmyyyy || '');
       const formType = age < 60 ? '15G' : '15H';
 
-      // Check 15G acknowledgement for high income
-      if (formType === '15G' && profile.income_total_fy && profile.income_total_fy > 250000 && !profile.ack_15g_over_exemption) {
-        toast({
-          variant: 'destructive',
-          title: 'Acknowledgement required',
-          description: 'Please acknowledge the 15G filing for income above exemption limit.'
-        });
-        navigate('/profile');
-        return;
-      }
-
       const fileName = `Form${formType}_PartA_${profile.fy_label}_${profile.name?.replace(/\s+/g, '_')}_${holding.symbol}.pdf`;
       
       // Generate PDF
@@ -154,11 +143,11 @@ export const DashboardPage = () => {
         <div className="max-w-6xl mx-auto">
           <Button
             variant="ghost"
-            onClick={() => navigate('/dividends')}
+            onClick={() => navigate('/holdings')}
             className="mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dividends
+            Back to Holdings
           </Button>
 
           <div className="space-y-6">
@@ -291,7 +280,7 @@ export const DashboardPage = () => {
             </Card>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Button 
                 variant="outline" 
                 onClick={() => navigate('/profile')}
@@ -311,17 +300,6 @@ export const DashboardPage = () => {
                 <div className="text-left">
                   <div className="font-medium">Manage Holdings</div>
                   <div className="text-sm text-muted-foreground">Add or update holdings</div>
-                </div>
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                onClick={() => navigate('/dividends')}
-                className="h-auto p-4 justify-start"
-              >
-                <div className="text-left">
-                  <div className="font-medium">Update Dividends</div>
-                  <div className="text-sm text-muted-foreground">Modify dividend amounts</div>
                 </div>
               </Button>
             </div>
