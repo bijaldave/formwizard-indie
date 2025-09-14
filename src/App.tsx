@@ -8,7 +8,7 @@ import { WelcomePage } from "@/pages/WelcomePage";
 import { AuthPage } from "@/pages/AuthPage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { HoldingsPage } from "@/pages/HoldingsPage";
-import { DividendPage } from "@/pages/DividendPage";
+
 import { DashboardPage } from "@/pages/DashboardPage";
 
 import NotFound from "./pages/NotFound";
@@ -26,7 +26,7 @@ const App = () => (
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/holdings" element={<ProtectedRoute><HoldingsPage /></ProtectedRoute>} />
-          <Route path="/dividends" element={<ProtectedRoute><DividendPage /></ProtectedRoute>} />
+          
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           
           <Route path="*" element={<NotFound />} />
