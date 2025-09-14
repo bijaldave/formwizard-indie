@@ -11,11 +11,18 @@ import { getHoldings, setHoldings, getDividends, setDividends } from '@/lib/stor
 import { HoldingRow, DividendRow } from '@/types';
 import { ArrowLeft, Upload, Plus, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import Fuse from 'fuse.js';
 
 export const HoldingsPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [holdings, setHoldingsState] = useState<HoldingRow[]>([]);
+  const [parsingInfo, setParsingInfo] = useState<{
+    headerRow: number;
+    sheetName: string;
+    confidence: number;
+    totalRows: number;
+  } | null>(null);
   const [manualEntry, setManualEntry] = useState({
     symbol: '',
     company: '',
@@ -29,91 +36,159 @@ export const HoldingsPage = () => {
     setHoldingsState(savedHoldings);
   }, []);
 
-  const parseHoldings = (data: any[]): HoldingRow[] => {
+  // Enhanced NLP-based parser with fuzzy matching
+  const parseHoldings = (data: any[], sheetName: string): HoldingRow[] => {
     if (!data || data.length === 0) return [];
 
-    // Find header row (scan first 30 rows for common patterns)
-    let headerRowIndex = -1;
-    const synonyms = {
-      symbol: ['trading symbol', 'security symbol', 'scrip', 'code', 'symbol'],
-      company: ['scrip name', 'company', 'instrument', 'name', 'security name'],
-      isin: ['isin code', 'isin no', 'isin number', 'isin'],
-      qty: ['qty', 'quantity held', 'quantity available', 'net qty', 'holdings', 'balance', 'quantity']
+    // Comprehensive synonym map for broker exports
+    const synonymMap = {
+      symbol: ['symbol', 'ticker', 'trading symbol', 'security symbol', 'scrip', 'scrip code', 'code', 'stock code', 'share code'],
+      company_name: ['security name', 'scrip name', 'company', 'company name', 'security', 'instrument', 'name', 'stock name', 'share name', 'issuer name'],
+      isin: ['isin', 'isin code', 'isin_no', 'isin number', 'international security identification number'],
+      quantity: ['qty', 'quantity', 'quantity held', 'quantity available', 'net qty', 'free qty', 'holdings', 'balance', 'avail qty', 'available quantity', 'shares', 'units']
     };
+
+    // Normalize text for fuzzy matching
+    const normalizeText = (text: string): string => {
+      return text.toLowerCase().replace(/[^a-z0-9]/g, '');
+    };
+
+    // Fuzzy match using Fuse.js
+    const fuzzyMatch = (text: string, synonyms: string[], threshold = 0.6): boolean => {
+      const fuse = new Fuse(synonyms, {
+        includeScore: true,
+        threshold: 1 - threshold, // Fuse uses distance, we want similarity
+        keys: ['']
+      });
+      
+      const result = fuse.search(normalizeText(text));
+      return result.length > 0 && result[0].score! <= (1 - threshold);
+    };
+
+    // Find best header row by scanning first 30 rows
+    let bestHeaderRow = -1;
+    let bestScore = -1;
+    let bestConfidence = 0;
 
     for (let i = 0; i < Math.min(30, data.length); i++) {
       const row = data[i];
       if (!row || typeof row !== 'object') continue;
 
-      const keys = Object.keys(row).map(k => k.toLowerCase());
-      const hasSymbol = synonyms.symbol.some(s => keys.some(k => k.includes(s)));
-      const hasCompany = synonyms.company.some(s => keys.some(k => k.includes(s)));
-      const hasQty = synonyms.qty.some(s => keys.some(k => k.includes(s)));
+      const headers = Object.keys(row);
+      if (headers.length < 2) continue;
 
-      if (hasSymbol && hasCompany && hasQty) {
-        headerRowIndex = i;
-        break;
+      let score = 0;
+      const matchedFields = new Set<string>();
+
+      headers.forEach(header => {
+        const headerText = String(header).trim();
+        if (!headerText || headerText.length < 2) return;
+
+        Object.entries(synonymMap).forEach(([canonical, synonyms]) => {
+          if (fuzzyMatch(headerText, synonyms, 0.75)) {
+            score += 2; // Higher weight for exact matches
+            matchedFields.add(canonical);
+          } else if (fuzzyMatch(headerText, synonyms, 0.5)) {
+            score += 1; // Lower weight for partial matches
+            matchedFields.add(canonical);
+          }
+        });
+      });
+
+      // Require at least symbol, company, and quantity
+      const requiredFields = ['symbol', 'company_name', 'quantity'];
+      const hasRequired = requiredFields.every(field => matchedFields.has(field));
+
+      if (hasRequired && score > bestScore) {
+        bestScore = score;
+        bestHeaderRow = i;
+        bestConfidence = Math.min(100, (score / (headers.length * 2)) * 100);
       }
     }
 
-    if (headerRowIndex === -1) {
-      throw new Error("Can't find headers. Expected columns: Symbol, Company Name, ISIN, Quantity");
+    if (bestHeaderRow === -1) {
+      throw new Error("Cannot detect header row. Expected columns: Symbol, Company Name, and Quantity");
     }
 
-    // Map columns
-    const headerRow = data[headerRowIndex];
+    // Map columns to canonical fields
+    const headerRow = data[bestHeaderRow];
     const columnMap: Record<string, string> = {};
 
     Object.keys(headerRow).forEach(key => {
-      const lowerKey = key.toLowerCase();
-      if (synonyms.symbol.some(s => lowerKey.includes(s))) {
-        columnMap.symbol = key;
-      } else if (synonyms.company.some(s => lowerKey.includes(s))) {
-        columnMap.company = key;
-      } else if (synonyms.isin.some(s => lowerKey.includes(s))) {
-        columnMap.isin = key;
-      } else if (synonyms.qty.some(s => lowerKey.includes(s))) {
-        columnMap.qty = key;
-      }
+      const keyText = String(key).trim();
+      
+      Object.entries(synonymMap).forEach(([canonical, synonyms]) => {
+        if (!columnMap[canonical] && fuzzyMatch(keyText, synonyms, 0.75)) {
+          columnMap[canonical] = key;
+        }
+      });
     });
 
-    // Parse data rows
-    const holdings: HoldingRow[] = [];
-    const seenISIN = new Set<string>();
+    // Store parsing info for UI feedback
+    setParsingInfo({
+      headerRow: bestHeaderRow + 1, // 1-indexed for display
+      sheetName,
+      confidence: Math.round(bestConfidence),
+      totalRows: data.length - bestHeaderRow - 1
+    });
 
-    for (let i = headerRowIndex + 1; i < data.length; i++) {
+    // Parse and normalize data rows
+    const holdings: HoldingRow[] = [];
+    const seenKeys = new Set<string>();
+
+    for (let i = bestHeaderRow + 1; i < data.length; i++) {
       const row = data[i];
       if (!row || typeof row !== 'object') continue;
 
       const symbol = row[columnMap.symbol];
-      const company = row[columnMap.company];
+      const company = row[columnMap.company_name];
       const isin = row[columnMap.isin];
-      let qty = row[columnMap.qty];
+      let qty = row[columnMap.quantity];
 
+      // Skip if missing required fields
       if (!symbol || !company || !qty) continue;
 
-      // Clean quantity
+      // Clean and validate quantity
       if (typeof qty === 'string') {
         qty = qty.replace(/[,\s]/g, '');
       }
       const qtyNum = parseInt(qty, 10);
       if (isNaN(qtyNum) || qtyNum <= 0) continue;
 
-      // Use ISIN for deduplication, fallback to symbol
-      const dedupeKey = isin || symbol;
-      if (seenISIN.has(dedupeKey)) {
-        const existingIndex = holdings.findIndex(h => (h.isin && h.isin === isin) || h.symbol === symbol);
+      // Normalize fields
+      const normalizedSymbol = String(symbol).trim().toUpperCase();
+      const normalizedCompany = String(company).trim();
+      let normalizedISIN = '';
+      
+      if (isin) {
+        normalizedISIN = String(isin).trim().toUpperCase();
+        // Validate ISIN format (basic check)
+        if (normalizedISIN && !/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(normalizedISIN)) {
+          normalizedISIN = ''; // Clear invalid ISIN
+        }
+      }
+
+      // Deduplicate using ISIN > Symbol > Company
+      const dedupeKey = normalizedISIN || normalizedSymbol || normalizedCompany;
+      
+      if (seenKeys.has(dedupeKey)) {
+        // Sum quantities for duplicates
+        const existingIndex = holdings.findIndex(h => 
+          (h.isin && h.isin === normalizedISIN) ||
+          (h.symbol === normalizedSymbol) ||
+          (h.company === normalizedCompany)
+        );
         if (existingIndex >= 0) {
           holdings[existingIndex].qty += qtyNum;
         }
       } else {
         holdings.push({
-          symbol: String(symbol).trim(),
-          company: String(company).trim(),
-          isin: isin ? String(isin).trim() : '',
+          symbol: normalizedSymbol,
+          company: normalizedCompany,
+          isin: normalizedISIN,
           qty: qtyNum,
         });
-        seenISIN.add(dedupeKey);
+        seenKeys.add(dedupeKey);
       }
     }
 
@@ -130,15 +205,45 @@ export const HoldingsPage = () => {
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
         
-        // Find sheet containing "Equity" or use first non-empty sheet
-        let sheetName = workbook.SheetNames.find(name => 
-          name.toLowerCase().includes('equity')
-        ) || workbook.SheetNames[0];
+        // Enhanced sheet selection logic
+        let selectedSheet = '';
+        
+        if (workbook.SheetNames.length === 1) {
+          selectedSheet = workbook.SheetNames[0];
+        } else {
+          // Look for equity sheet (case-insensitive)
+          const equitySheet = workbook.SheetNames.find(name => 
+            name.toLowerCase().includes('equity')
+          );
+          
+          if (equitySheet) {
+            selectedSheet = equitySheet;
+          } else {
+            // Find sheet with most non-empty rows (likely the data sheet)
+            let bestSheet = workbook.SheetNames[0];
+            let maxRows = 0;
+            
+            workbook.SheetNames.forEach(sheetName => {
+              const worksheet = workbook.Sheets[sheetName];
+              const jsonData = XLSX.utils.sheet_to_json(worksheet);
+              if (jsonData.length > maxRows) {
+                maxRows = jsonData.length;
+                bestSheet = sheetName;
+              }
+            });
+            
+            selectedSheet = bestSheet;
+          }
+        }
 
-        const worksheet = workbook.Sheets[sheetName];
+        const worksheet = workbook.Sheets[selectedSheet];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        const parsedHoldings = parseHoldings(jsonData);
+        if (jsonData.length === 0) {
+          throw new Error('Selected sheet appears to be empty');
+        }
+        
+        const parsedHoldings = parseHoldings(jsonData, selectedSheet);
         
         if (parsedHoldings.length === 0) {
           throw new Error('No valid holdings found in file');
@@ -157,13 +262,14 @@ export const HoldingsPage = () => {
         setDividends(dividends);
 
         toast({ 
-          title: `Parsed ${jsonData.length} rows · Deduped to ${parsedHoldings.length} stocks` 
+          title: `Sheet: ${selectedSheet} • Header: Row ${parsingInfo?.headerRow} • Parsed ${parsedHoldings.length} stocks (${parsingInfo?.confidence}% confidence)` 
         });
         
       } catch (error) {
+        setParsingInfo(null);
         toast({
           variant: 'destructive',
-          title: "Can't read file. Try CSV/XLSX with columns: Symbol, Name, ISIN, Quantity."
+          title: error instanceof Error ? error.message : "Cannot parse file. Try CSV/XLSX with Symbol, Company Name, and Quantity columns."
         });
       }
     };
@@ -337,6 +443,34 @@ export const HoldingsPage = () => {
                 </CollapsibleContent>
               </Collapsible>
             </Card>
+
+            {/* Parsing Info */}
+            {parsingInfo && (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <span className="text-primary font-medium">Sheet:</span>
+                      {parsingInfo.sheetName}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-primary font-medium">Header:</span>
+                      Row {parsingInfo.headerRow}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-primary font-medium">Confidence:</span>
+                      <span className={parsingInfo.confidence > 80 ? 'text-green-600' : parsingInfo.confidence > 60 ? 'text-yellow-600' : 'text-red-600'}>
+                        {parsingInfo.confidence}%
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-primary font-medium">Data Rows:</span>
+                      {parsingInfo.totalRows}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Holdings Table */}
             {holdings.length > 0 && (
