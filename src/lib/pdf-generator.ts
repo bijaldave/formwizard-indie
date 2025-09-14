@@ -2,52 +2,59 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { Profile, DividendRow, FieldMapping } from '@/types';
 import { getAgeFromDOB } from './validation';
 
-// Field mappings for Form 15G - Precise absolute coordinates (A4 PDF: 595x842 points)
+// Form 15G field mappings - Updated template with structured table layout
 const FORM_15G_FIELDS: Record<string, FieldMapping> = {
-  // Personal Information Section
-  name: { x: 180, y: 720, width: 240, height: 15, fontSize: 10, maxWidth: 240 },
-  pan: { x: 450, y: 720, width: 100, height: 15, fontSize: 10, maxWidth: 100 },
-  dob: { x: 180, y: 695, width: 80, height: 15, fontSize: 10, maxWidth: 80 },
+  // Row 1: Name, PAN, Status
+  name: { x: 30, y: 710, width: 180, height: 16, fontSize: 9, maxWidth: 175 },
+  pan: { x: 220, y: 710, width: 120, height: 16, fontSize: 9, maxWidth: 115 },
+  status_individual: { x: 350, y: 712, width: 10, height: 10, fontSize: 10 },
+  status_huf: { x: 380, y: 712, width: 10, height: 10, fontSize: 10 },
   
-  // Status checkboxes
-  status_individual: { x: 120, y: 670, width: 12, height: 12, fontSize: 12 },
-  status_huf: { x: 180, y: 670, width: 12, height: 12, fontSize: 12 },
+  // Row 2: Previous Year, Residential Status
+  previous_year: { x: 30, y: 685, width: 180, height: 16, fontSize: 9, maxWidth: 175 },
+  resident_yes: { x: 220, y: 687, width: 10, height: 10, fontSize: 10 },
+  resident_no: { x: 280, y: 687, width: 10, height: 10, fontSize: 10 },
   
-  // Previous year and residential status
-  previous_year: { x: 380, y: 695, width: 80, height: 15, fontSize: 10, maxWidth: 80 },
-  resident_yes: { x: 200, y: 645, width: 12, height: 12, fontSize: 12 },
-  resident_no: { x: 300, y: 645, width: 12, height: 12, fontSize: 12 },
+  // Row 3: Address Line 1 - Flat, Premises, Street
+  addr_flat: { x: 30, y: 660, width: 100, height: 16, fontSize: 8, maxWidth: 95 },
+  addr_premises: { x: 140, y: 660, width: 120, height: 16, fontSize: 8, maxWidth: 115 },
+  addr_street: { x: 270, y: 660, width: 100, height: 16, fontSize: 8, maxWidth: 95 },
   
-  // Address Fields
-  addr_flat: { x: 150, y: 620, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
-  addr_premises: { x: 300, y: 620, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
-  addr_street: { x: 450, y: 620, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
-  addr_area: { x: 150, y: 595, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
-  addr_city: { x: 300, y: 595, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
-  addr_state: { x: 450, y: 595, width: 100, height: 15, fontSize: 9, maxWidth: 95 },
-  addr_pin: { x: 150, y: 570, width: 80, height: 15, fontSize: 9, maxWidth: 75 },
-  email: { x: 250, y: 570, width: 150, height: 15, fontSize: 9, maxWidth: 145 },
-  phone: { x: 420, y: 570, width: 120, height: 15, fontSize: 9, maxWidth: 115 },
+  // Row 4: Address Line 2 - Area, Phone number is also in this section
+  addr_area: { x: 380, y: 660, width: 120, height: 16, fontSize: 8, maxWidth: 115 },
   
-  // Assessment Details
-  assessed_yes: { x: 520, y: 545, width: 12, height: 12, fontSize: 12 },
-  assessed_no: { x: 550, y: 545, width: 12, height: 12, fontSize: 12 },
-  latest_ay: { x: 200, y: 520, width: 100, height: 15, fontSize: 9, maxWidth: 95 },
+  // Row 5: City, State, PIN
+  addr_city: { x: 30, y: 635, width: 100, height: 16, fontSize: 8, maxWidth: 95 },
+  addr_state: { x: 140, y: 635, width: 80, height: 16, fontSize: 8, maxWidth: 75 },
+  addr_pin: { x: 230, y: 635, width: 60, height: 16, fontSize: 8, maxWidth: 55 },
   
-  // Income Details
-  income_nature: { x: 80, y: 495, width: 150, height: 15, fontSize: 9, maxWidth: 145 },
-  income_estimated: { x: 280, y: 495, width: 100, height: 15, fontSize: 10, align: 'right', maxWidth: 95 },
-  income_total: { x: 450, y: 495, width: 100, height: 15, fontSize: 10, align: 'right', maxWidth: 95 },
+  // Row 6: Email and Phone
+  email: { x: 300, y: 635, width: 140, height: 16, fontSize: 8, maxWidth: 135 },
+  phone: { x: 450, y: 635, width: 120, height: 16, fontSize: 8, maxWidth: 115 },
   
-  // Previous Forms
-  other_forms_count: { x: 280, y: 470, width: 50, height: 15, fontSize: 9, align: 'center', maxWidth: 45 },
-  other_forms_amount: { x: 450, y: 470, width: 100, height: 15, fontSize: 9, align: 'right', maxWidth: 95 },
+  // Row 7: Assessment to Tax
+  assessed_yes: { x: 480, y: 612, width: 10, height: 10, fontSize: 10 },
+  assessed_no: { x: 510, y: 612, width: 10, height: 10, fontSize: 10 },
   
-  // BO ID
-  boid: { x: 150, y: 445, width: 200, height: 15, fontSize: 9, maxWidth: 195 },
+  // Row 8: Latest AY, Income amounts
+  latest_ay: { x: 30, y: 585, width: 80, height: 16, fontSize: 9, maxWidth: 75 },
+  income_estimated: { x: 220, y: 585, width: 100, height: 16, fontSize: 9, align: 'right', maxWidth: 95 },
+  income_total: { x: 350, y: 585, width: 100, height: 16, fontSize: 9, align: 'right', maxWidth: 95 },
   
-  // Signature
-  signature: { x: 420, y: 120, width: 150, height: 50 },
+  // Row 9: Other forms details
+  other_forms_count: { x: 220, y: 560, width: 50, height: 16, fontSize: 9, align: 'center', maxWidth: 45 },
+  other_forms_amount: { x: 350, y: 560, width: 100, height: 16, fontSize: 9, align: 'right', maxWidth: 95 },
+  
+  // Income details table (Row 19)
+  boid: { x: 70, y: 480, width: 120, height: 16, fontSize: 8, maxWidth: 115 },
+  income_nature: { x: 200, y: 480, width: 80, height: 16, fontSize: 8, maxWidth: 75 },
+  income_section: { x: 290, y: 480, width: 60, height: 16, fontSize: 8, maxWidth: 55 },
+  income_amount: { x: 380, y: 480, width: 80, height: 16, fontSize: 8, align: 'right', maxWidth: 75 },
+  
+  // Signature and verification
+  signature: { x: 400, y: 280, width: 120, height: 30 },
+  date: { x: 450, y: 240, width: 80, height: 16, fontSize: 9, maxWidth: 75 },
+  place: { x: 100, y: 240, width: 100, height: 16, fontSize: 9, maxWidth: 95 }
 };
 
 // Field mappings for Form 15H - Absolute coordinates (keeping existing working coordinates converted)
