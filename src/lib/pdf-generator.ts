@@ -2,16 +2,16 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { Profile, DividendRow, FieldMapping } from '@/types';
 import { getAgeFromDOB } from './validation';
 
-// Form 15G field mappings - Updated template with structured table layout
+// Form 15G field mappings - Updated with manual coordinates from new template
 const FORM_15G_FIELDS: Record<string, FieldMapping> = {
-  // Row 1: Name, PAN, Status
-  name: { x: 30, y: 710, width: 180, height: 16, fontSize: 9, maxWidth: 175 },
-  pan: { x: 220, y: 710, width: 120, height: 16, fontSize: 9, maxWidth: 115 },
-  status_individual: { x: 350, y: 712, width: 10, height: 10, fontSize: 10 },
-  status_huf: { x: 380, y: 712, width: 10, height: 10, fontSize: 10 },
+  // Row 1: Name, PAN, Status - Manual coordinates converted from top-left to bottom-left
+  name: { x: 135, y: 727, width: 76, height: 16, fontSize: 9, maxWidth: 76 },
+  pan: { x: 293, y: 727, width: 93, height: 16, fontSize: 9, maxWidth: 93 },
+  status_individual: { x: 37, y: 709, width: 10, height: 10, fontSize: 10 },
+  status_huf: { x: 60, y: 709, width: 10, height: 10, fontSize: 10 },
   
-  // Row 2: Previous Year, Residential Status
-  previous_year: { x: 30, y: 685, width: 180, height: 16, fontSize: 9, maxWidth: 175 },
+  // Row 2: Previous Year, Residential Status - Manual coordinates
+  previous_year: { x: 233, y: 709, width: 38, height: 16, fontSize: 9, maxWidth: 38 },
   resident_yes: { x: 220, y: 687, width: 10, height: 10, fontSize: 10 },
   resident_no: { x: 280, y: 687, width: 10, height: 10, fontSize: 10 },
   
