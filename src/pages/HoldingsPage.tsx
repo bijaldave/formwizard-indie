@@ -174,12 +174,14 @@ export const HoldingsPage = () => {
       </div>
 
       {/* Mapping Dialog */}
-      <HeaderMappingDialog
-        open={mappingDialog.open}
-        onClose={() => setMappingDialog({ open: false })}
-        requiresMapping={mappingDialog.requiresMapping!}
-        onConfirm={handleMappingConfirm}
-      />
+      {mappingDialog.requiresMapping && (
+        <HeaderMappingDialog
+          open={mappingDialog.open}
+          onClose={() => setMappingDialog({ open: false })}
+          requiresMapping={mappingDialog.requiresMapping}
+          onConfirm={handleMappingConfirm}
+        />
+      )}
     </div>
   );
 };
