@@ -1,8 +1,5 @@
-import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsLib from './pdfjsSetup';
 import CryptoJS from 'crypto-js';
-
-// Configure PDF.js worker with CDN fallback for reliability
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js';
 
 export interface TextRun {
   text: string;

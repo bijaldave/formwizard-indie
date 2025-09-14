@@ -6,7 +6,7 @@ import { ArrowLeft, Save, Download, Move, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { loadEmbeddedTemplate } from '@/lib/templateLoader';
 import { saveCalibrationData, loadCalibrationData, buildAcroFormShell } from '@/lib/pdf/calibration';
-import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsLib from '@/lib/pdf/pdfjsSetup';
 
 // Field definitions for each form type
 const FORM_FIELDS = {
