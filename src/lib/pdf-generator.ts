@@ -2,30 +2,36 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { Profile, DividendRow, FieldMapping } from '@/types';
 import { getAgeFromDOB } from './validation';
 
-// Field mappings for Form 15G - Part A
+// Field mappings for Form 15G - Part A (Based on filled form analysis)
 const FORM_15G_FIELDS: Record<string, FieldMapping> = {
-  name: { xPct: 0.14, yPct: 0.83, wPct: 0.72, hPct: 0.022 },
-  pan: { xPct: 0.14, yPct: 0.79, wPct: 0.30, hPct: 0.022 },
-  dob: { xPct: 0.66, yPct: 0.79, wPct: 0.20, hPct: 0.022 },
-  residentYes: { xPct: 0.14, yPct: 0.865, wPct: 0.018, hPct: 0.018 },
-  residentNo: { xPct: 0.20, yPct: 0.865, wPct: 0.018, hPct: 0.018 },
-  address: { xPct: 0.14, yPct: 0.745, wPct: 0.72, hPct: 0.070, lineClamp: 4 },
-  email: { xPct: 0.14, yPct: 0.676, wPct: 0.40, hPct: 0.022 },
-  phone: { xPct: 0.66, yPct: 0.676, wPct: 0.20, hPct: 0.022 },
-  assessedYes: { xPct: 0.14, yPct: 0.647, wPct: 0.018, hPct: 0.018 },
-  assessedNo: { xPct: 0.20, yPct: 0.647, wPct: 0.018, hPct: 0.018 },
-  latestAY: { xPct: 0.66, yPct: 0.647, wPct: 0.20, hPct: 0.022 },
-  pyLabel: { xPct: 0.66, yPct: 0.612, wPct: 0.20, hPct: 0.022 },
-  incomeFor: { xPct: 0.66, yPct: 0.595, wPct: 0.20, hPct: 0.022 },
-  incomeTotal: { xPct: 0.66, yPct: 0.579, wPct: 0.20, hPct: 0.022 },
-  otherCnt: { xPct: 0.66, yPct: 0.546, wPct: 0.20, hPct: 0.022 },
-  otherAmt: { xPct: 0.66, yPct: 0.513, wPct: 0.20, hPct: 0.022 },
-  boid: { xPct: 0.14, yPct: 0.513, wPct: 0.40, hPct: 0.022 },
-  incomeTbl_ident: { xPct: 0.14, yPct: 0.445, wPct: 0.30, hPct: 0.022 },
-  incomeTbl_nature: { xPct: 0.45, yPct: 0.445, wPct: 0.18, hPct: 0.022 },
-  incomeTbl_section: { xPct: 0.64, yPct: 0.445, wPct: 0.07, hPct: 0.022 },
-  incomeTbl_amount: { xPct: 0.73, yPct: 0.445, wPct: 0.13, hPct: 0.022 },
-  signature: { xPct: 0.67, yPct: 0.205, wPct: 0.22, hPct: 0.045 },
+  name: { xPct: 0.35, yPct: 0.162, wPct: 0.50, hPct: 0.020 },
+  pan: { xPct: 0.35, yPct: 0.197, wPct: 0.25, hPct: 0.020 },
+  dob: { xPct: 0.65, yPct: 0.197, wPct: 0.20, hPct: 0.020 },
+  status_individual: { xPct: 0.28, yPct: 0.232, wPct: 0.015, hPct: 0.015 },
+  status_huf: { xPct: 0.37, yPct: 0.232, wPct: 0.015, hPct: 0.015 },
+  previous_year: { xPct: 0.35, yPct: 0.267, wPct: 0.20, hPct: 0.020 },
+  resident_yes: { xPct: 0.28, yPct: 0.302, wPct: 0.015, hPct: 0.015 },
+  resident_no: { xPct: 0.35, yPct: 0.302, wPct: 0.015, hPct: 0.015 },
+  addr_flat: { xPct: 0.35, yPct: 0.337, wPct: 0.50, hPct: 0.020 },
+  addr_premises: { xPct: 0.35, yPct: 0.372, wPct: 0.50, hPct: 0.020 },
+  addr_street: { xPct: 0.35, yPct: 0.407, wPct: 0.50, hPct: 0.020 },
+  addr_area: { xPct: 0.35, yPct: 0.442, wPct: 0.25, hPct: 0.020 },
+  addr_city: { xPct: 0.62, yPct: 0.442, wPct: 0.23, hPct: 0.020 },
+  addr_state: { xPct: 0.35, yPct: 0.477, wPct: 0.25, hPct: 0.020 },
+  addr_pin: { xPct: 0.62, yPct: 0.477, wPct: 0.15, hPct: 0.020 },
+  email: { xPct: 0.35, yPct: 0.512, wPct: 0.50, hPct: 0.020 },
+  phone: { xPct: 0.35, yPct: 0.547, wPct: 0.25, hPct: 0.020 },
+  assessed_yes: { xPct: 0.28, yPct: 0.582, wPct: 0.015, hPct: 0.015 },
+  assessed_no: { xPct: 0.35, yPct: 0.582, wPct: 0.015, hPct: 0.015 },
+  latest_ay: { xPct: 0.50, yPct: 0.582, wPct: 0.20, hPct: 0.020 },
+  income_nature: { xPct: 0.35, yPct: 0.617, wPct: 0.25, hPct: 0.020 },
+  income_estimated: { xPct: 0.62, yPct: 0.617, wPct: 0.23, hPct: 0.020 },
+  income_total: { xPct: 0.35, yPct: 0.652, wPct: 0.25, hPct: 0.020 },
+  other_forms_count: { xPct: 0.35, yPct: 0.687, wPct: 0.15, hPct: 0.020 },
+  other_forms_amount: { xPct: 0.52, yPct: 0.687, wPct: 0.20, hPct: 0.020 },
+  boid: { xPct: 0.35, yPct: 0.722, wPct: 0.40, hPct: 0.020 },
+  dividend_amount: { xPct: 0.75, yPct: 0.757, wPct: 0.15, hPct: 0.020 },
+  signature: { xPct: 0.65, yPct: 0.875, wPct: 0.25, hPct: 0.060 },
 };
 
 // Field mappings for Form 15H - Part I
@@ -132,15 +138,15 @@ export const generatePDF = async (
   drawText('pan', profile.pan);
   drawText('dob', profile.dob_ddmmyyyy);
   
-  // Address handling
+  // Address handling - Individual fields for 15G
   if (formType === '15G') {
-    const address = [
-      profile.addr_flat,
-      profile.addr_premises,
-      profile.addr_street + ', ' + profile.addr_area,
-      profile.addr_city + ', ' + profile.addr_state + ' - ' + profile.addr_pin
-    ].filter(Boolean).join('\n');
-    drawText('address', address);
+    drawText('addr_flat', profile.addr_flat || '');
+    drawText('addr_premises', profile.addr_premises || '');
+    drawText('addr_street', profile.addr_street || '');
+    drawText('addr_area', profile.addr_area || '');
+    drawText('addr_city', profile.addr_city || '');
+    drawText('addr_state', profile.addr_state || '');
+    drawText('addr_pin', profile.addr_pin || '');
   } else {
     drawText('addr_flat', profile.addr_flat);
     drawText('addr_prem', profile.addr_premises);
@@ -154,30 +160,38 @@ export const generatePDF = async (
   drawText('email', profile.email);
   drawText('phone', profile.phone);
   
-  // Checkboxes
-  drawCheckbox('residentYes', profile.resident);
-  drawCheckbox('residentNo', !profile.resident);
-  drawCheckbox('assessedYes', profile.assessed_to_tax === 'Yes');
-  drawCheckbox('assessedNo', profile.assessed_to_tax === 'No');
+  // Status checkboxes
+  drawCheckbox('status_individual', profile.status === 'Individual');
+  drawCheckbox('status_huf', profile.status === 'HUF');
+  
+  // Previous year
+  drawText('previous_year', profile.fy_label || '');
+  
+  // Residential status checkboxes
+  drawCheckbox('resident_yes', profile.residential_status === 'Indian');
+  drawCheckbox('resident_no', profile.residential_status === 'NRI');
+  
+  // Assessment checkboxes
+  drawCheckbox('assessed_yes', profile.assessed_to_tax === 'Yes');
+  drawCheckbox('assessed_no', profile.assessed_to_tax === 'No');
   
   // Income information
   if (profile.assessed_to_tax === 'Yes') {
-    drawText('latestAY', profile.latest_ay);
+    drawText('latest_ay', profile.latest_ay || '');
   }
-  drawText('pyLabel', profile.fy_label || '');
-  drawText('incomeFor', String(profile.income_for_decl ?? ''));
-  drawText('incomeTotal', String(profile.income_total_fy ?? ''));
-  drawText('otherCnt', String(profile.other_forms_count ?? ''));
-  drawText('otherAmt', String(profile.other_forms_amount ?? ''));
+  
+  // Income details
+  drawText('income_nature', 'Dividend on equity shares');
+  drawText('income_estimated', String(profile.income_for_decl ?? ''));
+  drawText('income_total', String(profile.income_total_fy ?? ''));
+  drawText('other_forms_count', String(profile.other_forms_count ?? ''));
+  drawText('other_forms_amount', String(profile.other_forms_amount ?? ''));
   
   // BO ID
-  drawText('boid', profile.boid);
+  drawText('boid', profile.boid || '');
   
-  // Income table - dividend details
-  drawText('incomeTbl_ident', profile.boid);
-  drawText('incomeTbl_nature', 'Dividend on equity shares');
-  drawText('incomeTbl_section', '194');
-  drawText('incomeTbl_amount', String(dividend.total ?? ''));
+  // Dividend amount in the table
+  drawText('dividend_amount', String(dividend.total ?? ''));
   
   // Signature
   if (profile.signature && fields.signature) {

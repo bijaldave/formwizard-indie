@@ -2,8 +2,8 @@ export type Profile = {
   name: string;
   pan: string;
   dob_ddmmyyyy: string;
-  resident: boolean;
-  status: 'Individual';
+  residential_status: 'Indian' | 'NRI';
+  status: 'Individual' | 'HUF';
   addr_flat: string;
   addr_premises: string;
   addr_street: string;

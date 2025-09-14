@@ -19,7 +19,7 @@ export const ProfilePage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const signaturePad = useRef<SignatureCanvas | null>(null);
   const [profile, setProfileState] = useState<Partial<Profile>>({
-    resident: true,
+    residential_status: 'Indian',
     status: 'Individual',
     assessed_to_tax: 'No',
     income_for_decl: 0,
@@ -185,6 +185,34 @@ export const ProfilePage = () => {
                     placeholder="10/02/1992"
                   />
                   {errors.dob_ddmmyyyy && <p className="text-sm text-destructive mt-1">{errors.dob_ddmmyyyy}</p>}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="status">Status *</Label>
+                    <Select value={profile.status || 'Individual'} onValueChange={(value: 'Individual' | 'HUF') => setProfileState(prev => ({ ...prev, status: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Individual">Individual</SelectItem>
+                        <SelectItem value="HUF">HUF</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="residential_status">Residential Status *</Label>
+                    <Select value={profile.residential_status || 'Indian'} onValueChange={(value: 'Indian' | 'NRI') => setProfileState(prev => ({ ...prev, residential_status: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select residential status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Indian">Indian Resident</SelectItem>
+                        <SelectItem value="NRI">Non-Resident Indian</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 <div>
