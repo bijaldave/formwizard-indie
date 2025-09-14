@@ -51,9 +51,9 @@ export function profileToForm15GData(profile: Profile, dividend: DividendRow): F
   const assessmentYear = profile.assessmentYear || `${currentYear + 1}-${(currentYear + 2).toString().slice(-2)}`;
   const previousYear = `${currentYear - 1}-${currentYear.toString().slice(-2)}`;
   
-  // Use updated field names with fallbacks for compatibility
+  // Use profile fields with proper fallbacks - estimated income should NOT come from dividend
   const estimatedIncomeCurrent = profile.estimatedIncomeCurrent || profile.income_for_decl || dividend.total;
-  const estimatedIncomeTotal = profile.estimatedIncomeTotal || profile.income_total_fy || dividend.total;
+  const estimatedIncomeTotal = profile.estimatedIncomeTotal || profile.income_total_fy || 0;
   const formCount = profile.formCount || profile.other_forms_count || 0;
   const formAmount = profile.formAmount || profile.other_forms_amount || 0;
   
@@ -77,7 +77,7 @@ export function profileToForm15GData(profile: Profile, dividend: DividendRow): F
     assessed_yes: profile.assessed_to_tax === 'Yes',
     assessed_no: profile.assessed_to_tax === 'No',
     latest_ay: profile.assessmentYearPrevious || profile.latest_ay || assessmentYear,
-    estimated_income_current: dividend.total.toLocaleString('en-IN', { 
+    estimated_income_current: estimatedIncomeCurrent.toLocaleString('en-IN', { 
       style: 'currency', 
       currency: 'INR',
       minimumFractionDigits: 2 
@@ -117,30 +117,30 @@ export async function fillForm15G(
   debugMode: boolean = false
 ): Promise<Uint8Array> {
   try {
-    // Load the PDF
+    console.log('FILL15G: Starting PDF filling process');
     const arrayBuffer = await templateFile.arrayBuffer();
     const pdfDoc = await PDFDocument.load(arrayBuffer);
     const page = pdfDoc.getPage(0);
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // Get coordinate map using enhanced detection
+    console.log('FILL15G: Getting coordinate map from template manager');
     const coordinateMap = await templateManager.getCoordinateMap(templateFile, '15G');
     
-    // Validate anchors before filling
+    console.log('FILL15G: Validating template anchors');
     const validation = await validateAnchors(templateFile, coordinateMap, '15G');
     if (!validation.valid) {
-      console.warn('Form 15G validation issues:', validation.errors);
-      // Continue with detected coordinates but log warnings
+      console.warn('FILL15G: Template validation issues:', validation.errors.join(', '));
     }
 
-    // Fill all fields using exact coordinate placement
+    console.log('FILL15G: Filling all fields with exact coordinates');
     await fillAllFieldsExact(page, font, data, coordinateMap, pdfDoc);
 
-    // Add debug overlay if requested
     if (debugMode) {
+      console.log('FILL15G: Rendering debug overlay');
       await renderDebugOverlayExact(page, font, coordinateMap);
     }
 
+    console.log('FILL15G: Saving filled PDF');
     return await pdfDoc.save();
   } catch (error) {
     console.error('Error filling Form 15G:', error);

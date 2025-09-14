@@ -1,25 +1,27 @@
 import CryptoJS from 'crypto-js';
 import { CoordinateMap, detectCoordinates, validateAnchors } from './coordDetection';
 
-// Load and save coordinates from persistent storage
-async function loadStoredCoordinates(): Promise<{ [key: string]: CoordinateMap }> {
+// Persistent storage functions using localStorage
+async function loadStoredCoordinates(): Promise<{ [key: string]: any }> {
   try {
-    const response = await fetch('/src/lib/pdf/coords.json');
-    const data = await response.json();
-    return data.coordinateMaps || {};
+    const stored = localStorage.getItem('pdf_coord_maps_v1');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      console.log('TEMPLATE: Loaded stored coordinates from cache');
+      return parsed;
+    }
   } catch (error) {
-    console.warn('Could not load stored coordinates:', error);
-    return {};
+    console.log('TEMPLATE: No stored coordinates found, will detect fresh');
   }
+  return {};
 }
 
-async function saveStoredCoordinates(coordinates: { [key: string]: CoordinateMap }): Promise<void> {
+async function saveStoredCoordinates(coordinates: { [key: string]: any }): Promise<void> {
   try {
-    // In production, this would save to a backend
-    // For now, we'll just cache in memory
-    console.log('Coordinates would be saved to persistent storage:', coordinates);
+    localStorage.setItem('pdf_coord_maps_v1', JSON.stringify(coordinates));
+    console.log('TEMPLATE: Saved coordinates to localStorage for', Object.keys(coordinates).length, 'templates');
   } catch (error) {
-    console.warn('Could not save coordinates:', error);
+    console.error('TEMPLATE: Failed to save coordinates:', error);
   }
 }
 
@@ -93,74 +95,70 @@ class TemplateManager {
    * Get or detect coordinate map for template
    */
   async getCoordinateMap(file: File, formType: '15G' | '15H'): Promise<CoordinateMap> {
-    console.log(`🗺️ Getting coordinate map for Form ${formType}`);
-    
     const hash = await this.calculatePdfHash(file);
-    const cacheKey = `${hash}_${formType}`;
-    
+    console.log(`TEMPLATE: Getting coordinate map for ${formType} (hash: ${hash})`);
+
     // Check memory cache first
-    const cached = this.getCachedTemplate(cacheKey);
+    const memoryCache = this.getCachedTemplate(hash);
+    if (memoryCache?.coordinateMap) {
+      console.log(`TEMPLATE: Using memory cache for ${hash}`);
+      return memoryCache.coordinateMap;
+    }
+
+    // Check persistent storage
+    const storedCoords = await loadStoredCoordinates();
+    const storageKey = `${hash}_${formType}`;
     
-    if (cached?.coordinateMap) {
-      console.log('📋 Found cached coordinates, validating...');
-      // Validate cached coordinates
-      try {
-        const validation = await validateAnchors(file, cached.coordinateMap, formType);
-        if (validation.valid) {
-          console.log('✅ Cached coordinates are valid');
-          return cached.coordinateMap;
-        } else {
-          console.warn('⚠️ Cached coordinates invalid, re-detecting:', validation.errors);
-        }
-      } catch (error) {
-        console.warn('❌ Validation failed, re-detecting:', error);
+    if (storedCoords[storageKey]) {
+      console.log(`TEMPLATE: Found stored coordinates for ${hash}`);
+      const coordinateMap = storedCoords[storageKey];
+      
+      // Validate stored coordinates against current PDF
+      const validation = await validateAnchors(file, coordinateMap, formType);
+      if (validation.valid) {
+        console.log(`TEMPLATE: Stored coordinates validated successfully`);
+        // Cache in memory for faster access
+        this.cacheTemplate(hash, {
+          hash,
+          pageSize: { width: coordinateMap.pageWidth, height: coordinateMap.pageHeight },
+          detectedAnchors: coordinateMap.anchors,
+          affineMatrix: null,
+          coordinateMap
+        });
+        return coordinateMap;
+      } else {
+        console.log(`TEMPLATE: Stored coordinates invalid, will re-detect:`, validation.errors.join(', '));
       }
     }
 
-    // Load from persistent storage
-    const storedCoordinates = await loadStoredCoordinates();
-    const storedMap = storedCoordinates[cacheKey];
-    
-    if (storedMap) {
-      console.log('💾 Found stored coordinates, validating...');
-      try {
-        const validation = await validateAnchors(file, storedMap, formType);
-        if (validation.valid) {
-          // Cache in memory and return
-          this.cacheTemplate(cacheKey, {
-            hash,
-            pageSize: { width: storedMap.pageWidth, height: storedMap.pageHeight },
-            detectedAnchors: {},
-            coordinateMap: storedMap
-          });
-          console.log('✅ Stored coordinates are valid');
-          return storedMap;
-        } else {
-          console.warn('⚠️ Stored coordinates invalid, re-detecting:', validation.errors);
-        }
-      } catch (error) {
-        console.warn('❌ Stored validation failed, re-detecting:', error);
+    // Detect fresh coordinates
+    console.log(`TEMPLATE: Detecting fresh coordinates for ${formType}`);
+    try {
+      const coordinateMap = await detectCoordinates(file, formType);
+      
+      if (Object.keys(coordinateMap.anchors).length === 0) {
+        throw new Error('No text anchors detected - template may be image-based or corrupted');
       }
+      
+      // Cache in memory
+      this.cacheTemplate(hash, {
+        hash,
+        pageSize: { width: coordinateMap.pageWidth, height: coordinateMap.pageHeight },
+        detectedAnchors: coordinateMap.anchors,
+        affineMatrix: null,
+        coordinateMap
+      });
+      
+      // Store persistently
+      storedCoords[storageKey] = coordinateMap;
+      await saveStoredCoordinates(storedCoords);
+      
+      console.log(`TEMPLATE: Successfully detected and cached coordinates for ${formType}`);
+      return coordinateMap;
+    } catch (error) {
+      console.error('TEMPLATE: Coordinate detection failed:', error);
+      throw new Error(`Template text not detected. Please use the official template or enable debug with ?debug=1. Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    console.log('🔍 Detecting new coordinates...');
-    // Detect new coordinates
-    const coordinateMap = await detectCoordinates(file, formType);
-    
-    // Cache in memory
-    this.cacheTemplate(cacheKey, {
-      hash,
-      pageSize: { width: coordinateMap.pageWidth, height: coordinateMap.pageHeight },
-      detectedAnchors: {},
-      coordinateMap
-    });
-
-    // Save to persistent storage
-    const updatedStorage = { ...storedCoordinates, [cacheKey]: coordinateMap };
-    await saveStoredCoordinates(updatedStorage);
-
-    console.log('✅ New coordinates detected and cached');
-    return coordinateMap;
   }
 
   /**

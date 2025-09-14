@@ -1,14 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
-import 'pdfjs-dist/build/pdf.worker.mjs';
 import CryptoJS from 'crypto-js';
 
-// Configure PDF.js worker - use local worker to avoid CDN issues
-try {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).href;
-} catch (e) {
-  // Fallback to CDN if local worker fails
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js`;
-}
+// Configure PDF.js worker with CDN fallback for reliability
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js';
 
 export interface TextRun {
   text: string;
@@ -47,65 +41,62 @@ export interface CoordinateMap {
   lastDetected: number;
 }
 
-// Form field labels for detection (normalized)
+// Form 15G Labels - comprehensive variations for reliable detection
 const FORM_15G_LABELS = {
-  name: [
-    'name of assessee',
-    'name of the assessee',
-    'name of assessee declarant',
-    'name of the declarant',
-    'name of declarant'
-  ],
-  pan: ['pan of the assessee', 'pan of assessee', 'pan number'],
-  previous_year: ['previous year', 'p y ending on', 'previous year ending'],
-  assessment_year: ['assessment year', 'relevant to the assessment year', 'ay'],
-  residential_status: ['residential status', 'resident status', 'resident nri'],
-  addr_flat: ['flat door block no', 'flat door block', 'house number', 'door number', 'flat number'],
-  addr_premises: ['name of premises', 'building', 'premises building village'],
-  addr_street: ['road street lane post office', 'road street', 'street', 'lane'],
-  addr_area: ['area locality taluka sub division', 'area locality', 'locality'],
-  addr_city: ['town city district', 'town city', 'city', 'district'],
-  addr_state: ['state', 'state name'],
-  addr_pin: ['pin', 'pin code', 'pincode', 'postal code'],
-  email: ['email', 'e mail'],
-  phone: ['telephone mobile no', 'telephone', 'mobile'],
-  assessed_yes: ['whether assessed to tax', 'assessed to tax under income tax act'],
-  assessed_no: ['whether assessed to tax', 'assessed to tax under income tax act'],
-  latest_ay: ['latest assessment year for which assessed', 'latest assessment year'],
-  estimated_income_current: ['estimated income for which declaration is made', 'estimated income for declaration'],
-  estimated_income_total: ['estimated total income of the p y', 'estimated total income of the previous year'],
-  boid: ['identification number', 'bo id', 'demat account number', 'dp id'],
-  nature_income: ['nature of income', 'income type'],
-  section: ['section', 'under section'],
-  dividend_amount: ['amount of income', 'amount rs', 'amount in rs'],
-  form_count: ['total number of form 15g', 'total number of form 15h', 'total number of forms filed'],
-  form_amount: ['aggregate amount of income for which form 15g', 'aggregate amount of income for which form 15h'],
-  declaration_fy_end: ['p y ending on', 'previous year ending on'],
-  declaration_ay: ['ay', 'assessment year'],
-  signature: ['signature of the declarant', 'signature']
+  name: ['Name of the Assessee', 'Name', 'Name of Assessee', 'Assessee Name', 'Full Name'],
+  pan: ['PAN', 'Permanent Account Number', 'PAN No', 'PAN Number', 'P.A.N.'],
+  status_individual: ['Individual', 'Status Individual', 'Individual Status', 'Ind.', 'Individual ✓'],
+  status_huf: ['HUF', 'Hindu Undivided Family', 'Status HUF', 'H.U.F.', 'HUF ✓'],
+  previous_year: ['Previous Year', 'Assessment Year', 'P.Y.', 'AY', 'Prev. Year', 'Financial Year'],
+  assessment_year: ['Assessment Year', 'A.Y.', 'Year of Assessment', 'Assess. Year'],
+  addr_flat: ['Flat', 'Flat No', 'Flat Number', 'House No', 'Flat/House No.', 'Dwelling No.'],
+  addr_premises: ['Premises', 'Building', 'Premises Name', 'Building Name', 'Name of Premises'],
+  addr_street: ['Street', 'Road', 'Street Name', 'Road/Street', 'Street/Road'],
+  addr_area: ['Area', 'Locality', 'Area/Locality', 'Locality/Area'],
+  addr_city: ['City', 'Town', 'City/Town', 'Town/City'],
+  addr_state: ['State', 'State Name', 'State/UT'],
+  addr_pin: ['PIN', 'Pincode', 'PIN Code', 'Postal Code', 'Pin Code', 'ZIP'],
+  email: ['Email', 'E-mail', 'Email ID', 'Email Address', 'E-mail ID'],
+  phone: ['Phone', 'Mobile', 'Phone No', 'Mobile No', 'Contact', 'Phone Number', 'Mobile Number'],
+  residential_status: ['Residential Status', 'Status', 'Resident Status', 'Res. Status'],
+  assessed_yes: ['Yes', 'Assessed - Yes', 'Yes ✓', 'Assessed Yes'],
+  assessed_no: ['No', 'Assessed - No', 'No ✓', 'Assessed No'],
+  latest_ay: ['Latest Assessment Year', 'Latest AY', 'Last AY', 'Previous Assessment Year'],
+  estimated_income_current: ['Estimated Income', 'Current Income', 'Income Current', 'Current Year Income'],
+  estimated_income_total: ['Total Income', 'Estimated Total', 'Total Estimated', 'Total Income Estimated'],
+  boid: ['Identification Number', 'ID Number', 'BOID', 'Beneficiary ID', 'Identification No.'],
+  nature_income: ['Nature of Income', 'Income Nature', 'Type of Income', 'Income Type'],
+  section: ['Section', 'Section No', 'Under Section', 'Sec.', 'Section Number'],
+  dividend_amount: ['Amount of Income', 'Income Amount', 'Dividend Amount', 'Amount'],
+  form_count: ['Number of Forms', 'Total Forms', 'Forms Count', 'No. of Forms'],
+  form_amount: ['Aggregate Amount', 'Total Amount', 'Amount Total', 'Aggregate Sum'],
+  signature: ['Signature', 'Sign', 'Signature of Assessee', 'Assessee Signature'],
+  declaration_fy_end: ['Financial Year', 'FY End', 'Year End', 'F.Y. End'],
+  declaration_ay: ['Assessment Year', 'AY', 'Declaration AY', 'A.Y.']
 };
 
+// Form 15H Labels - comprehensive variations for reliable detection
 const FORM_15H_LABELS = {
-  name: ['name of assessee', 'assessee name', 'name of the assessee'],
-  pan: ['pan of the assessee', 'pan number'],
-  address: ['address', 'residential address'],
-  previous_year: ['previous year', 'p y ending on', 'previous year ending'],
-  assessment_year: ['assessment year', 'relevant to the assessment year', 'ay'],
-  residential_status: ['residential status', 'resident status', 'resident nri'],
-  assessed_yes: ['whether assessed to tax', 'assessed for tax'],
-  assessed_no: ['whether assessed to tax', 'assessed for tax'],
-  latest_ay: ['latest assessment year for which assessed', 'assessment year'],
-  estimated_income_current: ['estimated income for which declaration is made'],
-  estimated_income_total: ['estimated total income of the p y'],
-  boid: ['identification number', 'bo id', 'demat account number', 'dp id'],
-  nature_income: ['nature of income', 'income type'],
-  section: ['section', 'under section'],
-  dividend_amount: ['amount of income', 'amount rs', 'amount in rs'],
-  form_count: ['total number of form 15h', 'total number of forms filed'],
-  form_amount: ['aggregate amount of income for which form 15h'],
-  declaration_fy_end: ['p y ending on', 'previous year ending on'],
-  declaration_ay: ['ay', 'assessment year'],
-  signature: ['signature of senior citizen', 'signature of the declarant', 'signature']
+  name: ['Name of the Assessee', 'Name', 'Name of Assessee', 'Assessee Name', 'Full Name'],
+  pan: ['PAN', 'Permanent Account Number', 'PAN No', 'PAN Number', 'P.A.N.'],
+  address: ['Address', 'Full Address', 'Complete Address', 'Postal Address'],
+  previous_year: ['Previous Year', 'P.Y.', 'Assessment Year', 'Prev. Year', 'Financial Year'],
+  assessment_year: ['Assessment Year', 'A.Y.', 'Year of Assessment', 'Assess. Year'],
+  residential_status: ['Residential Status', 'Status', 'Resident Status', 'Res. Status'],
+  assessed_yes: ['Yes', 'Assessed - Yes', 'Yes ✓', 'Assessed Yes'],
+  assessed_no: ['No', 'Assessed - No', 'No ✓', 'Assessed No'],
+  latest_ay: ['Latest Assessment Year', 'Latest AY', 'Last AY', 'Previous Assessment Year'],
+  estimated_income_current: ['Estimated Income', 'Current Income', 'Income Current', 'Current Year Income'],
+  estimated_income_total: ['Total Income', 'Estimated Total', 'Total Estimated', 'Total Income Estimated'],
+  boid: ['Identification Number', 'ID Number', 'BOID', 'Beneficiary ID', 'Identification No.'],
+  nature_income: ['Nature of Income', 'Income Nature', 'Type of Income', 'Income Type'],
+  section: ['Section', 'Section No', 'Under Section', 'Sec.', 'Section Number'],
+  dividend_amount: ['Amount of Income', 'Income Amount', 'Dividend Amount', 'Amount'],
+  form_count: ['Number of Forms', 'Total Forms', 'Forms Count', 'No. of Forms'],
+  form_amount: ['Aggregate Amount', 'Total Amount', 'Amount Total', 'Aggregate Sum'],
+  signature: ['Signature', 'Sign', 'Signature of Assessee', 'Assessee Signature'],
+  declaration_fy_end: ['Financial Year', 'FY End', 'Year End', 'F.Y. End'],
+  declaration_ay: ['Assessment Year', 'AY', 'Declaration AY', 'A.Y.']
 };
 
 /**
@@ -169,43 +160,56 @@ function calculateSimilarity(str1: string, str2: string): number {
  * Extract text runs from PDF page
  */
 async function extractTextRuns(file: File): Promise<{ textRuns: TextRun[], pageWidth: number, pageHeight: number }> {
-  console.log('🔍 Starting PDF text extraction...');
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const page = await pdf.getPage(1);
-
-  const textContent = await page.getTextContent();
-  const viewport = page.getViewport({ scale: 1.0 });
-  
-  console.log(`📄 Page dimensions: ${viewport.width} x ${viewport.height}`);
-  console.log(`📝 Found ${textContent.items.length} text items`);
-  
-  const textRuns: TextRun[] = [];
-
-  for (const item of textContent.items) {
-    if ('str' in item && item.str.trim()) {
-      // Convert to bottom-left origin
-      const transform = item.transform;
-      const x = transform[4];
-      const y = viewport.height - (transform[5] + item.height);
-      
-      textRuns.push({
-        text: item.str,
-        x,
-        y,
-        width: item.width,
-        height: item.height
-      });
+  try {
+    console.log('COORD: Starting PDF text extraction...');
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    
+    if (!pdf || pdf.numPages === 0) {
+      throw new Error('PDF document is empty or invalid');
     }
+    
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1.0 });
+    
+    const textContent = await page.getTextContent();
+    
+    if (!textContent.items || textContent.items.length === 0) {
+      console.log('COORD: WARNING - No text items found in PDF - may be image-based');
+      throw new Error('No text content detected in PDF template');
+    }
+
+    console.log(`COORD: Page dimensions: ${viewport.width} x ${viewport.height}`);
+    console.log(`COORD: Found ${textContent.items.length} text items`);
+    
+    const textRuns: TextRun[] = [];
+
+    for (const item of textContent.items) {
+      if ('str' in item && item.str.trim()) {
+        const transform = item.transform;
+        const x = transform[4];
+        // Fix Y coordinate calculation - use bottom-left origin consistently
+        const y = viewport.height - transform[5];
+        const width = item.width;
+        const height = item.height;
+        
+        textRuns.push({
+          text: item.str.trim(),
+          x, y, width, height
+        });
+      }
+    }
+
+    console.log(`COORD: Extracted ${textRuns.length} text runs from PDF`);
+    return {
+      textRuns,
+      pageWidth: viewport.width,
+      pageHeight: viewport.height
+    };
+  } catch (error) {
+    console.error('COORD ERROR: Failed to extract text from PDF:', error);
+    throw new Error(`Template text extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
-
-  console.log(`✅ Extracted ${textRuns.length} text runs`);
-
-  return {
-    textRuns,
-    pageWidth: viewport.width,
-    pageHeight: viewport.height
-  };
 }
 
 /**
@@ -266,7 +270,7 @@ function detectLabelAnchors(
   const labelMap = formType === '15G' ? FORM_15G_LABELS : FORM_15H_LABELS;
   const anchors: { [labelKey: string]: LabelAnchor } = {};
 
-  console.log(`🎯 Detecting anchors for Form ${formType} with ${Object.keys(labelMap).length} expected labels`);
+  console.log(`COORD: Detecting anchors for Form ${formType} with ${Object.keys(labelMap).length} expected labels`);
 
   for (const [fieldKey, labelVariants] of Object.entries(labelMap)) {
     let bestMatch: { phrase: any; confidence: number } | null = null;
@@ -297,13 +301,13 @@ function detectLabelAnchors(
         height: bestMatch.phrase.height,
         confidence: bestMatch.confidence
       };
-      console.log(`✅ Found anchor for '${fieldKey}': "${bestMatch.phrase.text}" (confidence: ${bestMatch.confidence.toFixed(2)})`);
+      console.log(`COORD: Found anchor for '${fieldKey}': "${bestMatch.phrase.text}" (confidence: ${bestMatch.confidence.toFixed(2)})`);
     } else {
-      console.warn(`❌ No anchor found for field '${fieldKey}'`);
+      console.warn(`COORD: No anchor found for field '${fieldKey}'`);
     }
   }
 
-  console.log(`🏆 Successfully detected ${Object.keys(anchors).length}/${Object.keys(labelMap).length} anchors`);
+  console.log(`COORD: Successfully detected ${Object.keys(anchors).length}/${Object.keys(labelMap).length} anchors`);
   return anchors;
 }
 
@@ -407,6 +411,7 @@ function discoverInputBoxes(
     inputBoxes[fieldKey] = inputBox;
   }
 
+  console.log(`COORD: Anchors found: ${Object.keys(anchors).length} of expected, Fields discovered: ${Object.keys(inputBoxes).length}`);
   return inputBoxes;
 }
 
@@ -414,23 +419,23 @@ function discoverInputBoxes(
  * Main coordinate detection function
  */
 export async function detectCoordinates(file: File, formType: '15G' | '15H'): Promise<CoordinateMap> {
-  console.log(`🚀 Starting coordinate detection for Form ${formType}`);
+  console.log(`COORD: Starting coordinate detection for Form ${formType}`);
   
   const pdfHash = await calculatePdfHash(file);
-  console.log(`🔐 PDF hash: ${pdfHash.substring(0, 16)}...`);
+  console.log(`COORD: PDF hash: ${pdfHash.substring(0, 16)}...`);
   
   const { textRuns, pageWidth, pageHeight } = await extractTextRuns(file);
   
   // Group text runs into phrases
   const phrases = groupTextRunsIntoSpansAndPhrases(textRuns);
-  console.log(`📋 Grouped into ${phrases.length} phrases`);
+  console.log(`COORD: Grouped into ${phrases.length} phrases`);
   
   // Detect label anchors
   const anchors = detectLabelAnchors(phrases, formType);
   
   // Discover input boxes near anchors
   const fields = discoverInputBoxes(anchors, pageWidth, pageHeight);
-  console.log(`📦 Discovered ${Object.keys(fields).length} input boxes`);
+  console.log(`COORD: Discovered ${Object.keys(fields).length} input boxes`);
 
   const coordinateMap = {
     pdfHash,
@@ -441,7 +446,7 @@ export async function detectCoordinates(file: File, formType: '15G' | '15H'): Pr
     lastDetected: Date.now()
   };
 
-  console.log('✅ Coordinate detection complete:', coordinateMap);
+  console.log(`COORD: Detected coordinates for Form ${formType}: ${Object.keys(anchors).length} anchors, ${Object.keys(fields).length} fields`);
   return coordinateMap;
 }
 
