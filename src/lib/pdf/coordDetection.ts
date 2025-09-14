@@ -1,0 +1,411 @@
+import * as pdfjsLib from 'pdfjs-dist';
+import 'pdfjs-dist/build/pdf.worker.mjs';
+import CryptoJS from 'crypto-js';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js`;
+
+export interface TextRun {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface LabelAnchor {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  confidence: number;
+}
+
+export interface InputBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+}
+
+export interface CoordinateMap {
+  pdfHash: string;
+  pageWidth: number;
+  pageHeight: number;
+  fields: { [fieldKey: string]: InputBox };
+  anchors: { [labelKey: string]: LabelAnchor };
+  lastDetected: number;
+}
+
+// Form field labels for detection (normalized)
+const FORM_15G_LABELS = {
+  'name': ['name of assessee', 'name of declarant', 'assessee name'],
+  'pan': ['pan of the assessee', 'pan of assessee', 'pan number'],
+  'addr_flat': ['flat', 'door no', 'house no'],
+  'addr_premises': ['name of premises', 'building', 'premises'],
+  'addr_street': ['road street', 'street', 'road'],
+  'addr_area': ['area locality', 'area', 'locality'],
+  'addr_city': ['town city', 'city', 'town'],
+  'addr_state': ['state', 'state name'],
+  'addr_pin': ['pin', 'pincode', 'postal code'],
+  'email': ['email', 'e-mail'],
+  'phone': ['phone', 'telephone', 'mobile'],
+  'assessed_yes': ['assessed to tax', 'assessed for tax'],
+  'latest_ay': ['latest assessment year', 'assessment year'],
+  'income_for_decl': ['amount of income', 'income amount'],
+  'boid': ['demat account', 'boid', 'dp id'],
+  'nature_income': ['nature of income', 'income type'],
+  'section': ['section', 'under section'],
+  'dividend_amount': ['amount rs', 'amount in rs'],
+  'signature': ['signature of declarant', 'signature']
+};
+
+const FORM_15H_LABELS = {
+  'name': ['name of assessee', 'assessee name'],
+  'pan': ['pan of the assessee', 'pan number'],
+  'address': ['address', 'residential address'],
+  'assessed_yes': ['assessed to tax', 'assessed for tax'],
+  'latest_ay': ['latest assessment year', 'assessment year'],
+  'income_amount': ['amount of income', 'income amount'],
+  'nature_income': ['nature of income', 'income type'],
+  'section': ['section', 'under section'],
+  'signature': ['signature of senior citizen', 'signature']
+};
+
+/**
+ * Calculate SHA-256 hash for PDF file
+ */
+export async function calculatePdfHash(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer);
+  return CryptoJS.SHA256(wordArray).toString();
+}
+
+/**
+ * Normalize text for matching
+ */
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Calculate Levenshtein distance
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+
+  for (let i = 0; i <= str1.length; i++) {
+    matrix[0][i] = i;
+  }
+  for (let j = 0; j <= str2.length; j++) {
+    matrix[j][0] = j;
+  }
+
+  for (let j = 1; j <= str2.length; j++) {
+    for (let i = 1; i <= str1.length; i++) {
+      const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[j][i] = Math.min(
+        matrix[j][i - 1] + 1,
+        matrix[j - 1][i] + 1,
+        matrix[j - 1][i - 1] + indicator
+      );
+    }
+  }
+
+  return matrix[str2.length][str1.length];
+}
+
+/**
+ * Calculate similarity score (0-1)
+ */
+function calculateSimilarity(str1: string, str2: string): number {
+  const maxLength = Math.max(str1.length, str2.length);
+  if (maxLength === 0) return 1.0;
+  const distance = levenshteinDistance(str1, str2);
+  return (maxLength - distance) / maxLength;
+}
+
+/**
+ * Extract text runs from PDF page
+ */
+async function extractTextRuns(file: File): Promise<{ textRuns: TextRun[], pageWidth: number, pageHeight: number }> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1);
+
+  const textContent = await page.getTextContent();
+  const viewport = page.getViewport({ scale: 1.0 });
+  
+  const textRuns: TextRun[] = [];
+
+  for (const item of textContent.items) {
+    if ('str' in item && item.str.trim()) {
+      // Convert to bottom-left origin
+      const transform = item.transform;
+      const x = transform[4];
+      const y = viewport.height - (transform[5] + item.height);
+      
+      textRuns.push({
+        text: item.str,
+        x,
+        y,
+        width: item.width,
+        height: item.height
+      });
+    }
+  }
+
+  return {
+    textRuns,
+    pageWidth: viewport.width,
+    pageHeight: viewport.height
+  };
+}
+
+/**
+ * Group nearby text runs into phrases
+ */
+function groupTextRunsIntoSpansAndPhrases(textRuns: TextRun[]): Array<{ text: string, x: number, y: number, width: number, height: number }> {
+  const phrases: Array<{ text: string, x: number, y: number, width: number, height: number }> = [];
+  const used = new Set<number>();
+
+  for (let i = 0; i < textRuns.length; i++) {
+    if (used.has(i)) continue;
+
+    let phrase = textRuns[i].text;
+    let minX = textRuns[i].x;
+    let maxX = textRuns[i].x + textRuns[i].width;
+    let minY = textRuns[i].y;
+    let maxY = textRuns[i].y + textRuns[i].height;
+    
+    used.add(i);
+
+    // Look for adjacent text runs
+    for (let j = i + 1; j < textRuns.length; j++) {
+      if (used.has(j)) continue;
+
+      const horizontalDistance = Math.abs(textRuns[j].x - maxX);
+      const verticalDistance = Math.abs(textRuns[j].y - textRuns[i].y);
+      
+      // Adjacent if within 20pt horizontally and 5pt vertically
+      if (horizontalDistance < 20 && verticalDistance < 5) {
+        phrase += ' ' + textRuns[j].text;
+        minX = Math.min(minX, textRuns[j].x);
+        maxX = Math.max(maxX, textRuns[j].x + textRuns[j].width);
+        minY = Math.min(minY, textRuns[j].y);
+        maxY = Math.max(maxY, textRuns[j].y + textRuns[j].height);
+        used.add(j);
+      }
+    }
+    
+    phrases.push({
+      text: phrase,
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    });
+  }
+
+  return phrases;
+}
+
+/**
+ * Detect label anchors in PDF
+ */
+function detectLabelAnchors(
+  phrases: Array<{ text: string, x: number, y: number, width: number, height: number }>,
+  formType: '15G' | '15H'
+): { [labelKey: string]: LabelAnchor } {
+  const labelMap = formType === '15G' ? FORM_15G_LABELS : FORM_15H_LABELS;
+  const anchors: { [labelKey: string]: LabelAnchor } = {};
+
+  for (const [fieldKey, labelVariants] of Object.entries(labelMap)) {
+    let bestMatch: { phrase: any; confidence: number } | null = null;
+
+    for (const phrase of phrases) {
+      const normalizedPhrase = normalizeText(phrase.text);
+      
+      for (const labelVariant of labelVariants) {
+        const normalizedLabel = normalizeText(labelVariant);
+        const confidence = calculateSimilarity(normalizedPhrase, normalizedLabel);
+
+        if (confidence >= 0.7 && (!bestMatch || confidence > bestMatch.confidence)) {
+          bestMatch = { phrase, confidence };
+        }
+      }
+    }
+
+    if (bestMatch) {
+      anchors[fieldKey] = {
+        text: bestMatch.phrase.text,
+        x: bestMatch.phrase.x,
+        y: bestMatch.phrase.y,
+        width: bestMatch.phrase.width,
+        height: bestMatch.phrase.height,
+        confidence: bestMatch.confidence
+      };
+    }
+  }
+
+  return anchors;
+}
+
+/**
+ * Discover input boxes near label anchors
+ */
+function discoverInputBoxes(
+  anchors: { [labelKey: string]: LabelAnchor },
+  pageWidth: number,
+  pageHeight: number
+): { [fieldKey: string]: InputBox } {
+  const inputBoxes: { [fieldKey: string]: InputBox } = {};
+
+  for (const [fieldKey, anchor] of Object.entries(anchors)) {
+    let inputBox: InputBox;
+
+    // Special handling for different field types
+    switch (fieldKey) {
+      case 'signature':
+        // Signature box is usually below the label
+        inputBox = {
+          x: anchor.x,
+          y: anchor.y - 60, // Below the label
+          width: 200,
+          height: 50,
+          xPct: anchor.x / pageWidth,
+          yPct: (anchor.y - 60) / pageHeight,
+          wPct: 200 / pageWidth,
+          hPct: 50 / pageHeight
+        };
+        break;
+
+      case 'assessed_yes':
+      case 'assessed_no':
+        // Small checkbox
+        inputBox = {
+          x: anchor.x + anchor.width + 10,
+          y: anchor.y,
+          width: 12,
+          height: 12,
+          xPct: (anchor.x + anchor.width + 10) / pageWidth,
+          yPct: anchor.y / pageHeight,
+          wPct: 12 / pageWidth,
+          hPct: 12 / pageHeight
+        };
+        break;
+
+      case 'address':
+        // Multi-line address field for 15H
+        inputBox = {
+          x: anchor.x,
+          y: anchor.y - 40,
+          width: 400,
+          height: 60,
+          xPct: anchor.x / pageWidth,
+          yPct: (anchor.y - 40) / pageHeight,
+          wPct: 400 / pageWidth,
+          hPct: 60 / pageHeight
+        };
+        break;
+
+      default:
+        // Standard input field to the right of label
+        inputBox = {
+          x: anchor.x + anchor.width + 10,
+          y: anchor.y,
+          width: 150,
+          height: 20,
+          xPct: (anchor.x + anchor.width + 10) / pageWidth,
+          yPct: anchor.y / pageHeight,
+          wPct: 150 / pageWidth,
+          hPct: 20 / pageHeight
+        };
+        break;
+    }
+
+    inputBoxes[fieldKey] = inputBox;
+  }
+
+  return inputBoxes;
+}
+
+/**
+ * Main coordinate detection function
+ */
+export async function detectCoordinates(file: File, formType: '15G' | '15H'): Promise<CoordinateMap> {
+  const pdfHash = await calculatePdfHash(file);
+  const { textRuns, pageWidth, pageHeight } = await extractTextRuns(file);
+  
+  // Group text runs into phrases
+  const phrases = groupTextRunsIntoSpansAndPhrases(textRuns);
+  
+  // Detect label anchors
+  const anchors = detectLabelAnchors(phrases, formType);
+  
+  // Discover input boxes near anchors
+  const fields = discoverInputBoxes(anchors, pageWidth, pageHeight);
+
+  return {
+    pdfHash,
+    pageWidth,
+    pageHeight,
+    fields,
+    anchors,
+    lastDetected: Date.now()
+  };
+}
+
+/**
+ * Validate anchors against cached coordinates
+ */
+export async function validateAnchors(
+  file: File, 
+  cachedCoords: CoordinateMap,
+  formType: '15G' | '15H'
+): Promise<{ valid: boolean; errors: string[] }> {
+  const errors: string[] = [];
+  
+  try {
+    const { textRuns, pageWidth, pageHeight } = await extractTextRuns(file);
+    const phrases = groupTextRunsIntoSpansAndPhrases(textRuns);
+    const currentAnchors = detectLabelAnchors(phrases, formType);
+
+    // Check each cached anchor
+    for (const [fieldKey, cachedAnchor] of Object.entries(cachedCoords.anchors)) {
+      const currentAnchor = currentAnchors[fieldKey];
+      
+      if (!currentAnchor) {
+        errors.push(`Label for field '${fieldKey}' not found`);
+        continue;
+      }
+
+      // Check if anchor moved more than 5pt
+      const deltaX = Math.abs(currentAnchor.x - cachedAnchor.x);
+      const deltaY = Math.abs(currentAnchor.y - cachedAnchor.y);
+      
+      if (deltaX > 5 || deltaY > 5) {
+        errors.push(`Label for field '${fieldKey}' moved by ${deltaX.toFixed(1)}pt, ${deltaY.toFixed(1)}pt`);
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      errors: [`Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`]
+    };
+  }
+}

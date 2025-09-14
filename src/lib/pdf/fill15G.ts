@@ -5,6 +5,7 @@ import { solveAffineTransform, transformRectangle, AffineMatrix } from './affine
 import { CANONICAL_ANCHORS, FORM_15G_FIELDS, percentageToPoints, formatIndianNumber } from './fieldMaps';
 import { templateManager } from './templateManager';
 import { renderDebugOverlay } from './debug';
+import { CoordinateMap, validateAnchors } from './coordDetection';
 
 export interface Form15GData {
   name: string;
@@ -49,267 +50,274 @@ export function profileToForm15GData(profile: Profile, readyDividends: DividendR
     pan: profile.pan,
     status_individual: profile.status === 'Individual',
     status_huf: profile.status === 'HUF',
-    previous_year: `${profile.fy_label} relevant to AY ${profile.latest_ay}`,
-    residential_status: profile.residential_status === 'Indian' ? 'RESIDENT' : 'NON-RESIDENT',
-    addr_flat: profile.addr_flat,
-    addr_premises: profile.addr_premises,
-    addr_street: profile.addr_street,
-    addr_area: profile.addr_area,
-    addr_city: profile.addr_city,
-    addr_state: profile.addr_state,
-    addr_pin: profile.addr_pin,
-    email: profile.email,
-    phone: profile.phone,
+    previous_year: `${currentDate.getFullYear() - 1}-${currentDate.getFullYear().toString().slice(-2)}`,
+    residential_status: profile.residential_status || 'Indian',
+    addr_flat: profile.addr_flat || '',
+    addr_premises: profile.addr_premises || '',
+    addr_street: profile.addr_street || '',
+    addr_area: profile.addr_area || '',
+    addr_city: profile.addr_city || '',
+    addr_state: profile.addr_state || '',
+    addr_pin: profile.addr_pin || '',
+    email: profile.email || '',
+    phone: profile.phone || '',
     assessed_yes: profile.assessed_to_tax === 'Yes',
     assessed_no: profile.assessed_to_tax === 'No',
-    latest_ay: profile.latest_ay,
-    income_for_decl: totalDividend.toFixed(2),
-    income_total_fy: profile.income_total_fy.toFixed(2),
-    other_forms_count: profile.other_forms_count.toString(),
-    other_forms_amount: profile.other_forms_amount.toFixed(2),
-    boid: profile.boid,
-    nature_income: "Dividend",
-    section: "194",
-    dividend_amount: totalDividend.toFixed(2),
+    latest_ay: profile.latest_ay || `${currentDate.getFullYear()}-${(currentDate.getFullYear() + 1).toString().slice(-2)}`,
+    income_for_decl: formatIndianNumber(totalDividend),
+    income_total_fy: formatIndianNumber(profile.income_total_fy || totalDividend),
+    other_forms_count: profile.other_forms_count?.toString() || '0',
+    other_forms_amount: formatIndianNumber(profile.other_forms_amount || 0),
+    boid: profile.boid || '',
+    nature_income: 'Dividend',
+    section: '194',
+    dividend_amount: formatIndianNumber(totalDividend),
     signature: profile.signature,
-    place_date: `Mumbai ${currentDate.toLocaleDateString('en-GB')}`
+    place_date: `${profile.addr_city || 'Place'}, ${currentDate.toLocaleDateString('en-IN')}`
   };
 }
 
 /**
- * Fill Form 15G PDF with user data using anchor-based positioning
+ * Fill Form 15G PDF with provided data using enhanced coordinate detection
  */
 export async function fillForm15G(
-  templateFile: File, 
-  data: Form15GData, 
+  templateFile: File,
+  data: Form15GData,
   debugMode: boolean = false
 ): Promise<Uint8Array> {
-  
-  // Validate template
-  const validation = await templateManager.validateTemplate(templateFile);
-  if (!validation.valid) {
-    throw new Error(validation.error);
-  }
+  try {
+    // Load the PDF
+    const arrayBuffer = await templateFile.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+    const page = pdfDoc.getPage(0);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  // Calculate template hash for caching
-  const hash = await templateManager.calculatePdfHash(templateFile);
-  let cachedTemplate = templateManager.getCachedTemplate(hash);
-  let affineMatrix: AffineMatrix;
-
-  if (cachedTemplate?.affineMatrix) {
-    // Use cached affine matrix
-    affineMatrix = cachedTemplate.affineMatrix;
-  } else {
-    // Detect anchors and compute affine transformation
-    const detectedAnchors = await detectAnchors(templateFile);
+    // Get coordinate map using enhanced detection
+    const coordinateMap = await templateManager.getCoordinateMap(templateFile, '15G');
     
-    if (detectedAnchors.length < 3) {
-      throw new Error('Template text not detected. Please use the provided official template.');
+    // Validate anchors before filling
+    const validation = await validateAnchors(templateFile, coordinateMap, '15G');
+    if (!validation.valid) {
+      console.warn('Form 15G validation issues:', validation.errors);
+      // Continue with detected coordinates but log warnings
     }
 
-    // Map detected anchors to canonical anchors
-    const canonicalPoints = [];
-    const measuredPoints = [];
-    
-    for (const anchor of detectedAnchors) {
-      const canonicalPoint = CANONICAL_ANCHORS[anchor.text];
-      if (canonicalPoint) {
-        canonicalPoints.push(canonicalPoint);
-        measuredPoints.push({ x: anchor.x, y: anchor.y });
-      }
+    // Fill all fields using exact coordinate placement
+    await fillAllFieldsExact(page, font, data, coordinateMap, pdfDoc);
+
+    // Add debug overlay if requested
+    if (debugMode) {
+      await renderDebugOverlayExact(page, font, coordinateMap);
     }
 
-    if (canonicalPoints.length < 3) {
-      throw new Error('Insufficient anchor matches. Please use the provided official template.');
-    }
-
-    // Solve affine transformation
-    const { matrix, rmsError } = solveAffineTransform(canonicalPoints, measuredPoints);
-    
-    if (rmsError > 4) {
-      throw new Error(`Template alignment error too high (${rmsError.toFixed(2)}pt). Enable debug mode for review.`);
-    }
-
-    affineMatrix = matrix;
-
-    // Cache the results
-    templateManager.cacheTemplate(hash, {
-      hash,
-      pageSize: { width: 595.32, height: 841.92 },
-      detectedAnchors: detectedAnchors.reduce((acc, anchor) => {
-        acc[anchor.text] = { x: anchor.x, y: anchor.y };
-        return acc;
-      }, {} as { [key: string]: { x: number; y: number } }),
-      affineMatrix
-    });
+    return await pdfDoc.save();
+  } catch (error) {
+    console.error('Error filling Form 15G:', error);
+    throw new Error(`Failed to fill Form 15G: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
-
-  // Load template PDF
-  const templateArrayBuffer = await templateFile.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(templateArrayBuffer);
-  const pages = pdfDoc.getPages();
-  const firstPage = pages[0];
-
-  // Get font
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-  // Fill all fields
-  await fillAllFields(firstPage, font, data, affineMatrix);
-
-  // Add debug overlay if requested
-  if (debugMode && cachedTemplate) {
-    await renderDebugOverlay(
-      firstPage, 
-      font, 
-      affineMatrix, 
-      Object.values(cachedTemplate.detectedAnchors),
-      Object.values(CANONICAL_ANCHORS)
-    );
-  }
-
-  // Return PDF bytes
-  return pdfDoc.save();
 }
 
 /**
- * Fill all form fields with transformed coordinates
+ * Fill all fields using enhanced coordinate detection
  */
-async function fillAllFields(
-  page: PDFPage, 
-  font: any, 
-  data: Form15GData, 
-  affineMatrix: AffineMatrix
+async function fillAllFieldsExact(
+  page: PDFPage,
+  font: any,
+  data: Form15GData,
+  coordinateMap: CoordinateMap,
+  pdfDoc: PDFDocument
 ): Promise<void> {
+  const { drawTextFieldExact, drawMultiLineTextExact, drawCheckboxExact, drawSignatureExact } = await import('./renderUtils');
   
-  // Helper function to draw text in a field
-  const drawTextField = (fieldName: string, text: string, rightAlign: boolean = false) => {
-    if (!text) return;
-    
-    const field = FORM_15G_FIELDS[fieldName];
-    if (!field) return;
-    
-    const canonicalRect = percentageToPoints(field);
-    const transformedRect = transformRectangle(affineMatrix, canonicalRect);
-    
-    // Auto-shrink font to fit
-    let fontSize = 12;
-    let textWidth = font.widthOfTextAtSize(text, fontSize);
-    
-    while (textWidth > transformedRect.width - 4 && fontSize > 8) {
-      fontSize -= 0.5;
-      textWidth = font.widthOfTextAtSize(text, fontSize);
-    }
-    
-    // Calculate position (vertically centered)
-    const x = rightAlign 
-      ? transformedRect.x + transformedRect.width - textWidth - 2
-      : transformedRect.x + 2;
-    const y = transformedRect.y + (transformedRect.height - fontSize) / 2;
-    
-    page.drawText(text, {
-      x,
-      y,
-      size: fontSize,
-      font,
-      color: rgb(0, 0, 0)
-    });
-  };
+  // Text fields mapping
+  const textFieldMappings = [
+    { field: 'name', value: data.name },
+    { field: 'pan', value: data.pan },
+    { field: 'addr_flat', value: data.addr_flat },
+    { field: 'addr_premises', value: data.addr_premises },
+    { field: 'addr_street', value: data.addr_street },
+    { field: 'addr_area', value: data.addr_area },
+    { field: 'addr_city', value: data.addr_city },
+    { field: 'addr_state', value: data.addr_state },
+    { field: 'addr_pin', value: data.addr_pin },
+    { field: 'email', value: data.email },
+    { field: 'phone', value: data.phone },
+    { field: 'latest_ay', value: data.latest_ay },
+    { field: 'income_for_decl', value: data.income_for_decl },
+    { field: 'boid', value: data.boid },
+    { field: 'nature_income', value: data.nature_income },
+    { field: 'section', value: data.section },
+    { field: 'dividend_amount', value: data.dividend_amount }
+  ];
 
-  // Helper function to draw checkbox
-  const drawCheckbox = (fieldName: string, checked: boolean) => {
-    if (!checked) return;
-    
-    const field = FORM_15G_FIELDS[fieldName];
-    if (!field) return;
-    
-    const canonicalRect = percentageToPoints(field);
-    const transformedRect = transformRectangle(affineMatrix, canonicalRect);
-    
-    // Draw checkmark centered in box
-    const checkSize = Math.min(transformedRect.width, transformedRect.height) * 0.7;
-    const x = transformedRect.x + (transformedRect.width - checkSize) / 2;
-    const y = transformedRect.y + (transformedRect.height - checkSize) / 2;
-    
-    page.drawText('✓', {
-      x,
-      y,
-      size: checkSize,
-      font,
-      color: rgb(0, 0, 0)
-    });
-  };
-
-  // Fill all text fields
-  drawTextField('name', data.name);
-  drawTextField('pan', data.pan);
-  drawTextField('previous_year', data.previous_year);
-  drawTextField('residential_status', data.residential_status);
-  drawTextField('addr_flat', data.addr_flat);
-  drawTextField('addr_premises', data.addr_premises);
-  drawTextField('addr_street', data.addr_street);
-  drawTextField('addr_area', data.addr_area);
-  drawTextField('addr_city', data.addr_city);
-  drawTextField('addr_state', data.addr_state);
-  drawTextField('addr_pin', data.addr_pin);
-  drawTextField('email', data.email);
-  drawTextField('phone', data.phone);
-  drawTextField('latest_ay', data.latest_ay);
-  drawTextField('income_for_decl', formatIndianNumber(parseFloat(data.income_for_decl)), true);
-  drawTextField('income_total_fy', formatIndianNumber(parseFloat(data.income_total_fy)), true);
-  drawTextField('other_forms_count', data.other_forms_count);
-  drawTextField('other_forms_amount', formatIndianNumber(parseFloat(data.other_forms_amount)), true);
-  drawTextField('boid', data.boid);
-  drawTextField('nature_income', data.nature_income);
-  drawTextField('section', data.section);
-  drawTextField('dividend_amount', formatIndianNumber(parseFloat(data.dividend_amount)), true);
-  drawTextField('place_date', data.place_date);
-
-  // Fill checkboxes
-  drawCheckbox('status_individual_check', data.status_individual);
-  drawCheckbox('status_huf_check', data.status_huf);
-  drawCheckbox('assessed_yes_check', data.assessed_yes);
-  drawCheckbox('assessed_no_check', data.assessed_no);
-
-  // Handle signature if present
-  if (data.signature) {
-    try {
-      // Convert base64 to image (assuming PNG)
-      const imageBytes = Uint8Array.from(atob(data.signature.split(',')[1]), c => c.charCodeAt(0));
-      const image = await page.doc.embedPng(imageBytes);
-      
-      const field = FORM_15G_FIELDS['signature'];
-      const canonicalRect = percentageToPoints(field);
-      const transformedRect = transformRectangle(affineMatrix, canonicalRect);
-      
-      // Scale image to fit with 2% padding, preserve aspect ratio
-      const padding = 0.02;
-      const availableWidth = transformedRect.width * (1 - 2 * padding);
-      const availableHeight = transformedRect.height * (1 - 2 * padding);
-      
-      const imageAspect = image.width / image.height;
-      const availableAspect = availableWidth / availableHeight;
-      
-      let drawWidth, drawHeight;
-      if (imageAspect > availableAspect) {
-        drawWidth = availableWidth;
-        drawHeight = availableWidth / imageAspect;
-      } else {
-        drawHeight = availableHeight;
-        drawWidth = availableHeight * imageAspect;
-      }
-      
-      // Center the image
-      const x = transformedRect.x + (transformedRect.width - drawWidth) / 2;
-      const y = transformedRect.y + (transformedRect.height - drawHeight) / 2;
-      
-      page.drawImage(image, {
-        x,
-        y,
-        width: drawWidth,
-        height: drawHeight
-      });
-    } catch (error) {
-      console.warn('Failed to embed signature:', error);
+  // Fill text fields
+  for (const mapping of textFieldMappings) {
+    const inputBox = coordinateMap.fields[mapping.field];
+    if (inputBox && mapping.value) {
+      await drawTextFieldExact(
+        page, 
+        font, 
+        mapping.value, 
+        inputBox, 
+        coordinateMap.pageWidth, 
+        coordinateMap.pageHeight
+      );
     }
   }
+
+  // Fill checkboxes
+  const checkboxMappings = [
+    { field: 'assessed_yes', value: data.assessed_yes },
+    { field: 'assessed_no', value: data.assessed_no }
+  ];
+
+  for (const mapping of checkboxMappings) {
+    const inputBox = coordinateMap.fields[mapping.field];
+    if (inputBox && mapping.value) {
+      await drawCheckboxExact(
+        page,
+        mapping.value,
+        inputBox,
+        coordinateMap.pageWidth,
+        coordinateMap.pageHeight
+      );
+    }
+  }
+
+  // Fill signature
+  if (data.signature && coordinateMap.fields.signature) {
+    await drawSignatureExact(
+      page,
+      data.signature,
+      coordinateMap.fields.signature,
+      coordinateMap.pageWidth,
+      coordinateMap.pageHeight,
+      pdfDoc
+    );
+  }
+}
+
+/**
+ * Render debug overlay for exact coordinate system
+ */
+async function renderDebugOverlayExact(
+  page: PDFPage,
+  font: any,
+  coordinateMap: CoordinateMap
+): Promise<void> {
+  const pageWidth = coordinateMap.pageWidth;
+  const pageHeight = coordinateMap.pageHeight;
+
+  // Draw 20x20 grid
+  const gridSize = 20;
+  const gridColor = rgb(0.9, 0.9, 0.9);
+
+  for (let x = 0; x <= pageWidth; x += gridSize) {
+    page.drawLine({
+      start: { x, y: 0 },
+      end: { x, y: pageHeight },
+      thickness: 0.5,
+      color: gridColor
+    });
+  }
+
+  for (let y = 0; y <= pageHeight; y += gridSize) {
+    page.drawLine({
+      start: { x: 0, y },
+      end: { x: pageWidth, y },
+      thickness: 0.5,
+      color: gridColor
+    });
+  }
+
+  // Draw anchors (green dots)
+  Object.entries(coordinateMap.anchors).forEach(([fieldKey, anchor]) => {
+    page.drawCircle({
+      x: anchor.x,
+      y: anchor.y,
+      size: 4,
+      color: rgb(0, 1, 0),
+      opacity: 0.7
+    });
+
+    page.drawText(`${fieldKey}`, {
+      x: anchor.x + 6,
+      y: anchor.y + 6,
+      size: 8,
+      font,
+      color: rgb(0, 1, 0)
+    });
+  });
+
+  // Draw input boxes (red rectangles)
+  Object.entries(coordinateMap.fields).forEach(([fieldKey, inputBox]) => {
+    const x = inputBox.xPct * pageWidth;
+    const y = inputBox.yPct * pageHeight;
+    const width = inputBox.wPct * pageWidth;
+    const height = inputBox.hPct * pageHeight;
+
+    page.drawRectangle({
+      x, y, width, height,
+      borderColor: rgb(1, 0, 0),
+      borderWidth: 1,
+      opacity: 0.3
+    });
+
+    page.drawText(fieldKey, {
+      x: x + 2,
+      y: y + height + 2,
+      size: 6,
+      font,
+      color: rgb(1, 0, 0)
+    });
+  });
+}
+
+/**
+ * Legacy function maintained for backward compatibility
+ */
+async function drawTextField(page: PDFPage, font: any, text: string, rect: any): Promise<void> {
+  if (!text || text.trim() === '') return;
+
+  let fontSize = 12;
+  const maxWidth = rect.width * 0.9;
+
+  while (fontSize > 6) {
+    const textWidth = font.widthOfTextAtSize(text, fontSize);
+    if (textWidth <= maxWidth) break;
+    fontSize -= 0.5;
+  }
+
+  const textY = rect.y + (rect.height - fontSize) / 2;
+
+  page.drawText(text, {
+    x: rect.x + 5,
+    y: textY,
+    size: fontSize,
+    font,
+    color: rgb(0, 0, 0)
+  });
+}
+
+/**
+ * Legacy function maintained for backward compatibility
+ */
+async function drawCheckbox(page: PDFPage, rect: any): Promise<void> {
+  const size = Math.min(rect.width, rect.height) * 0.8;
+  const centerX = rect.x + rect.width / 2;
+  const centerY = rect.y + rect.height / 2;
+
+  page.drawLine({
+    start: { x: centerX - size/3, y: centerY - size/6 },
+    end: { x: centerX - size/6, y: centerY - size/3 },
+    thickness: 2,
+    color: rgb(0, 0, 0)
+  });
+
+  page.drawLine({
+    start: { x: centerX - size/6, y: centerY - size/3 },
+    end: { x: centerX + size/3, y: centerY + size/4 },
+    thickness: 2,
+    color: rgb(0, 0, 0)
+  });
 }

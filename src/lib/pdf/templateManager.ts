@@ -1,4 +1,5 @@
 import CryptoJS from 'crypto-js';
+import { CoordinateMap, detectCoordinates, validateAnchors } from './coordDetection';
 
 // Canonical template hashes for embedded templates
 const CANONICAL_15G_HASH = "embedded_15g_template"; // Placeholder - using embedded template
@@ -12,6 +13,7 @@ export interface TemplateCache {
     a: number; b: number; c: number;
     d: number; e: number; f: number;
   };
+  coordinateMap?: CoordinateMap;
   lastUsed: number;
 }
 
@@ -63,6 +65,37 @@ class TemplateManager {
       ...data,
       lastUsed: Date.now()
     });
+  }
+
+  /**
+   * Get or detect coordinate map for template
+   */
+  async getCoordinateMap(file: File, formType: '15G' | '15H'): Promise<CoordinateMap> {
+    const hash = await this.calculatePdfHash(file);
+    const cached = this.getCachedTemplate(hash);
+    
+    if (cached?.coordinateMap) {
+      // Validate cached coordinates
+      const validation = await validateAnchors(file, cached.coordinateMap, formType);
+      if (validation.valid) {
+        return cached.coordinateMap;
+      } else {
+        console.warn('Cached coordinates invalid, re-detecting:', validation.errors);
+      }
+    }
+
+    // Detect new coordinates
+    const coordinateMap = await detectCoordinates(file, formType);
+    
+    // Cache the result
+    this.cacheTemplate(hash, {
+      hash,
+      pageSize: { width: coordinateMap.pageWidth, height: coordinateMap.pageHeight },
+      detectedAnchors: {},
+      coordinateMap
+    });
+
+    return coordinateMap;
   }
 
   /**
