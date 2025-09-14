@@ -31,6 +31,8 @@ export type DividendRow = {
   dps: number;
   total: number;
   status: 'pending' | 'ready' | 'filed';
+  formType?: '15g' | '15h'; // Which form type was filed
+  filedAt?: string; // When was it filed
 };
 
 export type HoldingRow = {
@@ -48,10 +50,10 @@ export type AuthData = {
 
 export type GeneratedForm = {
   id: string;
-  type: 'Form15G';
+  type: 'Form15G' | 'Form15H';
   generatedAt: string;
   filename: string;
-  dividends: DividendRow[];
+  dividend: DividendRow; // Single dividend per form
   profileSnapshot: Profile;
   totalAmount: number;
   pdfBlob?: Blob; // For preview

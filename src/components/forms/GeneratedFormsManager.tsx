@@ -53,7 +53,7 @@ export const GeneratedFormsManager = ({
 
     try {
       // Regenerate the form with current template
-      const form15GData = profileToForm15GData(form.profileSnapshot, form.dividends);
+      const form15GData = profileToForm15GData(form.profileSnapshot, [form.dividend]);
       const pdfBytes = await fillForm15G(templateFile, form15GData, false);
       
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
@@ -130,8 +130,8 @@ export const GeneratedFormsManager = ({
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
-                <span className="text-muted-foreground">Stocks Count:</span>
-                <div className="font-medium">{form.dividends.length}</div>
+                <span className="text-muted-foreground">Stock:</span>
+                <div className="font-medium">{form.dividend.symbol}</div>
               </div>
               <div>
                 <span className="text-muted-foreground">Name:</span>
@@ -150,13 +150,12 @@ export const GeneratedFormsManager = ({
             <Separator />
 
             <div>
-              <h4 className="text-sm font-medium mb-2">Included Stocks:</h4>
-              <div className="flex flex-wrap gap-2">
-                {form.dividends.map((dividend) => (
-                  <Badge key={dividend.symbol} variant="outline" className="text-xs">
-                    {dividend.symbol}: ₹{dividend.total.toLocaleString()}
-                  </Badge>
-                ))}
+              <h4 className="text-sm font-medium mb-2">Stock Details:</h4>
+              <div className="bg-muted p-3 rounded text-sm space-y-1">
+                <div><span className="text-muted-foreground">Symbol:</span> <span className="font-medium">{form.dividend.symbol}</span></div>
+                <div><span className="text-muted-foreground">Quantity:</span> <span className="font-medium">{form.dividend.qty.toLocaleString()}</span></div>
+                <div><span className="text-muted-foreground">DPS:</span> <span className="font-medium">₹{form.dividend.dps}</span></div>
+                <div><span className="text-muted-foreground">Total:</span> <span className="font-medium text-success">₹{form.dividend.total.toLocaleString()}</span></div>
               </div>
             </div>
 

@@ -11,6 +11,8 @@ import { getDividends, setDividends, getProfile, getGeneratedForms, addGenerated
 import { DividendRow, Profile, GeneratedForm } from '@/types';
 import { ArrowLeft, DollarSign, Calculator, FileText, Upload, History } from 'lucide-react';
 import { fillForm15G, profileToForm15GData } from '@/lib/pdf/fill15G';
+import { fillForm15H, profileToForm15HData } from '@/lib/pdf/fill15H';
+import { getFormType, getFormDisplayName, calculateAge } from '@/lib/utils/ageUtils';
 import { GeneratedFormsManager } from '@/components/forms/GeneratedFormsManager';
 import { FormPreviewDialog } from '@/components/forms/FormPreviewDialog';
 
@@ -20,6 +22,7 @@ export const DividendPage = () => {
   const [dividends, setDividendsState] = useState<DividendRow[]>([]);
   const [profile, setProfile] = useState<Partial<Profile>>({});
   const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [template15HFile, setTemplate15HFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedForms, setGeneratedFormsState] = useState<GeneratedForm[]>([]);
   const [previewForm, setPreviewForm] = useState<GeneratedForm | null>(null);
@@ -68,7 +71,7 @@ export const DividendPage = () => {
     navigate('/dashboard');
   };
 
-  const handleTemplateUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTemplateUpload = (event: React.ChangeEvent<HTMLInputElement>, formType: '15g' | '15h') => {
     const file = event.target.files?.[0];
     if (file) {
       if (file.type !== 'application/pdf') {
@@ -79,10 +82,16 @@ export const DividendPage = () => {
         });
         return;
       }
-      setTemplateFile(file);
+      
+      if (formType === '15g') {
+        setTemplateFile(file);
+      } else {
+        setTemplate15HFile(file);
+      }
+      
       toast({
         title: 'Template uploaded',
-        description: 'Form 15G template ready for processing.'
+        description: `${getFormDisplayName(formType)} template ready for processing.`
       });
     }
   };
@@ -105,7 +114,7 @@ export const DividendPage = () => {
     return missing;
   };
 
-  const handleGeneratePDF = async () => {
+  const handleGenerateIndividualPDF = async (dividend: DividendRow) => {
     // Validate data completeness
     const missingFields = validateProfileData();
     if (missingFields.length > 0) {
@@ -117,21 +126,14 @@ export const DividendPage = () => {
       return;
     }
 
-    const readyDividends = dividends.filter(d => d.status === 'ready');
-    if (readyDividends.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'No Ready Dividends',
-        description: 'Please mark at least one stock as ready before generating Form 15G.'
-      });
-      return;
-    }
-
-    if (!templateFile) {
+    const formType = getFormType(profile as Profile);
+    const requiredTemplate = formType === '15g' ? templateFile : template15HFile;
+    
+    if (!requiredTemplate) {
       toast({
         variant: 'destructive',
         title: 'Template Required',
-        description: 'Please upload the Form 15G template PDF first.'
+        description: `Please upload the ${getFormDisplayName(formType)} template PDF first.`
       });
       return;
     }
@@ -143,9 +145,18 @@ export const DividendPage = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const debugMode = urlParams.get('debug') === '1';
 
-      // Generate PDF
-      const form15GData = profileToForm15GData(profile as Profile, readyDividends);
-      const pdfBytes = await fillForm15G(templateFile, form15GData, debugMode);
+      let pdfBytes: Uint8Array;
+      let formDisplayName: string;
+
+      if (formType === '15g') {
+        const form15GData = profileToForm15GData(profile as Profile, [dividend]);
+        pdfBytes = await fillForm15G(requiredTemplate, form15GData, debugMode);
+        formDisplayName = 'Form 15G';
+      } else {
+        const form15HData = profileToForm15HData(profile as Profile, dividend);
+        pdfBytes = await fillForm15H(requiredTemplate, form15HData, debugMode);
+        formDisplayName = 'Form 15H';
+      }
 
       // Download the generated PDF
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
@@ -155,7 +166,7 @@ export const DividendPage = () => {
       
       const sanitizedName = profile.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'User';
       const date = new Date().toISOString().split('T')[0];
-      link.download = `Form15G_${sanitizedName}_${date}.pdf`;
+      link.download = `${formType.toUpperCase()}_${dividend.symbol}_${sanitizedName}_${date}.pdf`;
       
       document.body.appendChild(link);
       link.click();
@@ -164,31 +175,36 @@ export const DividendPage = () => {
 
       // Save the generated form
       const generatedForm: GeneratedForm = {
-        id: `form-${Date.now()}`,
-        type: 'Form15G',
+        id: `form-${Date.now()}-${dividend.symbol}`,
+        type: formType === '15g' ? 'Form15G' : 'Form15H',
         generatedAt: new Date().toISOString(),
-        filename: `Form15G_${sanitizedName}_${date}.pdf`,
-        dividends: readyDividends,
+        filename: `${formType.toUpperCase()}_${dividend.symbol}_${sanitizedName}_${date}.pdf`,
+        dividend: dividend,
         profileSnapshot: profile as Profile,
-        totalAmount: totalDividend,
+        totalAmount: dividend.total,
         pdfBlob: blob
       };
 
       addGeneratedForm(generatedForm);
       setGeneratedFormsState([generatedForm, ...generatedForms]);
 
-      // Mark dividends as filed
+      // Mark dividend as filed
       const updatedDividends = dividends.map(d => 
-        readyDividends.some(rd => rd.symbol === d.symbol) 
-          ? { ...d, status: 'filed' as const }
+        d.symbol === dividend.symbol 
+          ? { 
+              ...d, 
+              status: 'filed' as const, 
+              formType: formType,
+              filedAt: new Date().toISOString()
+            }
           : d
       );
       setDividendsState(updatedDividends);
       setDividends(updatedDividends);
 
       toast({
-        title: 'Form 15G Generated',
-        description: 'Your Form 15G has been generated and downloaded successfully.'
+        title: `${formDisplayName} Generated`,
+        description: `Your ${formDisplayName} for ${dividend.symbol} has been generated and downloaded successfully.`
       });
 
     } catch (error) {
@@ -196,7 +212,7 @@ export const DividendPage = () => {
       toast({
         variant: 'destructive',
         title: 'Generation Failed',
-        description: error instanceof Error ? error.message : 'Failed to generate Form 15G. Please try again.'
+        description: error instanceof Error ? error.message : `Failed to generate ${getFormDisplayName(formType)}. Please try again.`
       });
     } finally {
       setIsGenerating(false);
@@ -235,6 +251,9 @@ export const DividendPage = () => {
   const totalDividend = dividends
     .filter(d => d.status === 'ready')
     .reduce((sum, d) => sum + d.total, 0);
+  
+  const userAge = profile.dob_ddmmyyyy ? calculateAge(profile.dob_ddmmyyyy) : 0;
+  const formType = profile.dob_ddmmyyyy ? getFormType(profile as Profile) : '15g';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-primary/5">
@@ -287,13 +306,24 @@ export const DividendPage = () => {
                     <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{filedCount}</div>
                     <div className="text-sm text-muted-foreground">Already Filed</div>
                   </div>
-                  <div className="p-4 bg-accent/10 rounded-lg">
-                    <div className="text-2xl font-bold text-accent">₹{totalDividend.toLocaleString()}</div>
-                    <div className="text-sm text-muted-foreground">Total Dividend</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                   <div className="p-4 bg-accent/10 rounded-lg">
+                     <div className="text-2xl font-bold text-accent">₹{totalDividend.toLocaleString()}</div>
+                     <div className="text-sm text-muted-foreground">Ready Amount</div>
+                   </div>
+                 </div>
+                 
+                 {/* Age and Form Type Info */}
+                 {profile.dob_ddmmyyyy && (
+                   <div className="mt-4 p-4 bg-info/10 rounded-lg">
+                     <div className="text-sm text-muted-foreground">
+                       Age: <span className="font-medium">{userAge} years</span> → 
+                       Will generate: <span className="font-medium">{getFormDisplayName(formType)}</span>
+                       {formType === '15h' && <span className="ml-2 text-amber-600">Senior citizen form</span>}
+                     </div>
+                   </div>
+                 )}
+               </CardContent>
+             </Card>
 
             {/* Dividend Cards */}
             <div className="space-y-4">
@@ -318,46 +348,79 @@ export const DividendPage = () => {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground">
-                          Quantity held
-                        </Label>
-                        <div className="text-lg font-semibold">
-                          {dividend.qty.toLocaleString()}
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor={`dps-${index}`} className="text-sm font-medium">
-                          Dividend per share (₹)
-                        </Label>
-                        <Input
-                          id={`dps-${index}`}
-                          type="number"
-                          step="0.01"
-                          value={dividend.dps || ''}
-                          onChange={(e) => handleDividendChange(index, e.target.value)}
-                          placeholder="0.00"
-                          className="mt-1"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Enter the declared dividend per share for this stock. We'll multiply by your quantity.
-                        </p>
-                      </div>
-                      
-                      <div>
-                        <Label className="text-sm font-medium text-muted-foreground">
-                          Total dividend (₹)
-                        </Label>
-                        <div className="text-lg font-semibold text-success flex items-center gap-2">
-                          <Calculator className="h-4 w-4" />
-                          {dividend.total.toLocaleString()}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {dividend.dps} × {dividend.qty.toLocaleString()}
-                        </p>
+                   <CardContent className="space-y-4">
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                       <div>
+                         <Label className="text-sm font-medium text-muted-foreground">
+                           Quantity held
+                         </Label>
+                         <div className="text-lg font-semibold">
+                           {dividend.qty.toLocaleString()}
+                         </div>
+                       </div>
+                       
+                       <div>
+                         <Label htmlFor={`dps-${index}`} className="text-sm font-medium">
+                           Dividend per share (₹)
+                         </Label>
+                         <Input
+                           id={`dps-${index}`}
+                           type="number"
+                           step="0.01"
+                           value={dividend.dps || ''}
+                           onChange={(e) => handleDividendChange(index, e.target.value)}
+                           placeholder="0.00"
+                           className="mt-1"
+                           disabled={dividend.status === 'filed'}
+                         />
+                         <p className="text-xs text-muted-foreground mt-1">
+                           Enter the declared dividend per share for this stock.
+                         </p>
+                       </div>
+                       
+                       <div>
+                         <Label className="text-sm font-medium text-muted-foreground">
+                           Total dividend (₹)
+                         </Label>
+                         <div className="text-lg font-semibold text-success flex items-center gap-2">
+                           <Calculator className="h-4 w-4" />
+                           {dividend.total.toLocaleString()}
+                         </div>
+                         <p className="text-xs text-muted-foreground">
+                           {dividend.dps} × {dividend.qty.toLocaleString()}
+                         </p>
+                       </div>
+                       
+                       <div className="flex flex-col gap-2">
+                         {dividend.status === 'filed' ? (
+                           <div className="p-2 bg-success/10 rounded border border-success/20">
+                             <div className="text-sm font-medium text-success">
+                               ✓ {dividend.formType?.toUpperCase()} Filed
+                             </div>
+                             <div className="text-xs text-muted-foreground">
+                               {dividend.filedAt && new Date(dividend.filedAt).toLocaleDateString()}
+                             </div>
+                           </div>
+                         ) : (
+                           <Button
+                             onClick={() => handleGenerateIndividualPDF(dividend)}
+                             disabled={isGenerating || !dividend.dps || dividend.dps <= 0}
+                             className="w-full"
+                             size="sm"
+                           >
+                             {isGenerating ? (
+                               <>
+                                 <Upload className="h-3 w-3 mr-1 animate-spin" />
+                                 Generating...
+                               </>
+                             ) : (
+                              <>
+                                <FileText className="h-3 w-3 mr-1" />
+                                Generate {getFormDisplayName(formType)}
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -380,30 +443,30 @@ export const DividendPage = () => {
               </Card>
             )}
 
-            {/* Form 15G Generation */}
-            {dividends.length > 0 && readyCount > 0 && (
+            {/* Template Upload Section */}
+            {dividends.length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Generate Form 15G
+                    <Upload className="h-5 w-5" />
+                    Upload Form Templates
                   </CardTitle>
                   <CardDescription>
-                    Generate your Form 15G with the dividend information you've marked as ready.
+                    Upload the required form templates. Form selection is based on your age.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Template Upload */}
+                  {/* Form 15G Template */}
                   <div>
-                    <Label htmlFor="template-upload" className="text-sm font-medium">
-                      Upload Form 15G Template PDF
+                    <Label htmlFor="template-15g-upload" className="text-sm font-medium">
+                      Form 15G Template PDF (Age &lt; 60 years)
                     </Label>
                     <div className="flex items-center gap-4 mt-2">
                       <Input
-                        id="template-upload"
+                        id="template-15g-upload"
                         type="file"
                         accept=".pdf"
-                        onChange={handleTemplateUpload}
+                        onChange={(e) => handleTemplateUpload(e, '15g')}
                         className="flex-1"
                       />
                       {templateFile && (
@@ -412,33 +475,29 @@ export const DividendPage = () => {
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Upload the official Form 15G PDF template. Only the calibrated template will work correctly.
-                    </p>
                   </div>
 
-                  {/* Generation Button */}
-                  <div className="flex gap-4">
-                    <Button
-                      onClick={handleGeneratePDF}
-                      disabled={isGenerating || !templateFile}
-                      className="flex-1"
-                    >
-                      {isGenerating ? (
-                        <>
-                          <Upload className="h-4 w-4 mr-2 animate-spin" />
-                          Generating PDF...
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="h-4 w-4 mr-2" />
-                          Generate Form 15G ({readyCount} stocks, ₹{totalDividend.toLocaleString()})
-                        </>
+                  {/* Form 15H Template */}
+                  <div>
+                    <Label htmlFor="template-15h-upload" className="text-sm font-medium">
+                      Form 15H Template PDF (Age ≥ 60 years)
+                    </Label>
+                    <div className="flex items-center gap-4 mt-2">
+                      <Input
+                        id="template-15h-upload"
+                        type="file"
+                        accept=".pdf"
+                        onChange={(e) => handleTemplateUpload(e, '15h')}
+                        className="flex-1"
+                      />
+                      {template15HFile && (
+                        <div className="text-sm text-success">
+                          ✓ {template15HFile.name}
+                        </div>
                       )}
-                    </Button>
+                    </div>
                   </div>
 
-                  {/* Debug Mode Info */}
                   <div className="text-xs text-muted-foreground">
                     💡 Add <code>?debug=1</code> to the URL to enable debug overlay for troubleshooting alignment issues.
                   </div>
