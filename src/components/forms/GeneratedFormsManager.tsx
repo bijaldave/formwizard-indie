@@ -53,7 +53,7 @@ export const GeneratedFormsManager = ({
 
     try {
       // Regenerate the form with current template
-      const form15GData = profileToForm15GData(form.profileSnapshot, [form.dividend]);
+      const form15GData = profileToForm15GData(form.profileSnapshot, form.dividend);
       const pdfBytes = await fillForm15G(templateFile, form15GData, false);
       
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });

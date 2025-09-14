@@ -70,8 +70,7 @@ export const DashboardPage = () => {
     const requiredFields: (keyof Profile)[] = [
       'name', 'pan', 'status', 'residential_status', 'addr_flat', 'addr_premises',
       'addr_street', 'addr_area', 'addr_city', 'addr_state', 'addr_pin',
-      'email', 'phone', 'assessed_to_tax', 'latest_ay', 'fy_label',
-      'income_total_fy', 'boid'
+      'email', 'phone', 'assessed_to_tax', 'latest_ay', 'fy_label', 'boid'
     ];
 
     requiredFields.forEach(field => {
@@ -80,10 +79,21 @@ export const DashboardPage = () => {
       }
     });
 
+    // Check for either new or legacy fields
+    if (!profile.estimatedIncomeTotal && !profile.income_total_fy) {
+      missing.push('Estimated Total Income');
+    }
+
     return missing;
   };
 
   const handleGenerateForm = async (dividend: DividendRow) => {
+    // Always prompt for dividend if not set or if status is pending
+    if (dividend.status === 'pending' || dividend.dps === 0) {
+      handleEnterDividend(dividend);
+      return;
+    }
+
     // Validate profile completeness
     const missingFields = validateProfileData();
     if (missingFields.length > 0) {
@@ -97,6 +107,12 @@ export const DashboardPage = () => {
 
     setIsGenerating(true);
 
+    console.log('Starting PDF generation with data:', {
+      dividend,
+      profile,
+      formType: getFormType(profile as Profile)
+    });
+
     try {
       const formType = getFormType(profile as Profile);
       const templateFile = await loadEmbeddedTemplate(formType);
@@ -109,7 +125,7 @@ export const DashboardPage = () => {
       let formDisplayName: string;
 
       if (formType === '15g') {
-        const form15GData = profileToForm15GData(profile as Profile, [dividend]);
+        const form15GData = profileToForm15GData(profile as Profile, dividend);
         pdfBytes = await fillForm15G(templateFile, form15GData, debugMode);
         formDisplayName = 'Form 15G';
       } else {
@@ -244,9 +260,10 @@ export const DashboardPage = () => {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => handleRefileForm(dividend)}
+              onClick={() => handleGenerateForm(dividend)}
               disabled={!profileComplete || isGenerating}
               className="flex-1"
+              title="Generate new form"
             >
               <RefreshCw className="h-3 w-3" />
             </Button>

@@ -2,8 +2,13 @@ import * as pdfjsLib from 'pdfjs-dist';
 import 'pdfjs-dist/build/pdf.worker.mjs';
 import CryptoJS from 'crypto-js';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js`;
+// Configure PDF.js worker - use local worker to avoid CDN issues
+try {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).href;
+} catch (e) {
+  // Fallback to CDN if local worker fails
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js`;
+}
 
 export interface TextRun {
   text: string;
@@ -138,12 +143,16 @@ function calculateSimilarity(str1: string, str2: string): number {
  * Extract text runs from PDF page
  */
 async function extractTextRuns(file: File): Promise<{ textRuns: TextRun[], pageWidth: number, pageHeight: number }> {
+  console.log('🔍 Starting PDF text extraction...');
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const page = await pdf.getPage(1);
 
   const textContent = await page.getTextContent();
   const viewport = page.getViewport({ scale: 1.0 });
+  
+  console.log(`📄 Page dimensions: ${viewport.width} x ${viewport.height}`);
+  console.log(`📝 Found ${textContent.items.length} text items`);
   
   const textRuns: TextRun[] = [];
 
@@ -163,6 +172,8 @@ async function extractTextRuns(file: File): Promise<{ textRuns: TextRun[], pageW
       });
     }
   }
+
+  console.log(`✅ Extracted ${textRuns.length} text runs`);
 
   return {
     textRuns,
@@ -229,6 +240,8 @@ function detectLabelAnchors(
   const labelMap = formType === '15G' ? FORM_15G_LABELS : FORM_15H_LABELS;
   const anchors: { [labelKey: string]: LabelAnchor } = {};
 
+  console.log(`🎯 Detecting anchors for Form ${formType} with ${Object.keys(labelMap).length} expected labels`);
+
   for (const [fieldKey, labelVariants] of Object.entries(labelMap)) {
     let bestMatch: { phrase: any; confidence: number } | null = null;
 
@@ -254,9 +267,13 @@ function detectLabelAnchors(
         height: bestMatch.phrase.height,
         confidence: bestMatch.confidence
       };
+      console.log(`✅ Found anchor for '${fieldKey}': "${bestMatch.phrase.text}" (confidence: ${bestMatch.confidence.toFixed(2)})`);
+    } else {
+      console.warn(`❌ No anchor found for field '${fieldKey}'`);
     }
   }
 
+  console.log(`🏆 Successfully detected ${Object.keys(anchors).length}/${Object.keys(labelMap).length} anchors`);
   return anchors;
 }
 
@@ -343,19 +360,25 @@ function discoverInputBoxes(
  * Main coordinate detection function
  */
 export async function detectCoordinates(file: File, formType: '15G' | '15H'): Promise<CoordinateMap> {
+  console.log(`🚀 Starting coordinate detection for Form ${formType}`);
+  
   const pdfHash = await calculatePdfHash(file);
+  console.log(`🔐 PDF hash: ${pdfHash.substring(0, 16)}...`);
+  
   const { textRuns, pageWidth, pageHeight } = await extractTextRuns(file);
   
   // Group text runs into phrases
   const phrases = groupTextRunsIntoSpansAndPhrases(textRuns);
+  console.log(`📋 Grouped into ${phrases.length} phrases`);
   
   // Detect label anchors
   const anchors = detectLabelAnchors(phrases, formType);
   
   // Discover input boxes near anchors
   const fields = discoverInputBoxes(anchors, pageWidth, pageHeight);
+  console.log(`📦 Discovered ${Object.keys(fields).length} input boxes`);
 
-  return {
+  const coordinateMap = {
     pdfHash,
     pageWidth,
     pageHeight,
@@ -363,6 +386,9 @@ export async function detectCoordinates(file: File, formType: '15G' | '15H'): Pr
     anchors,
     lastDetected: Date.now()
   };
+
+  console.log('✅ Coordinate detection complete:', coordinateMap);
+  return coordinateMap;
 }
 
 /**

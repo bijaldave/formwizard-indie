@@ -1,6 +1,28 @@
 import CryptoJS from 'crypto-js';
 import { CoordinateMap, detectCoordinates, validateAnchors } from './coordDetection';
 
+// Load and save coordinates from persistent storage
+async function loadStoredCoordinates(): Promise<{ [key: string]: CoordinateMap }> {
+  try {
+    const response = await fetch('/src/lib/pdf/coords.json');
+    const data = await response.json();
+    return data.coordinateMaps || {};
+  } catch (error) {
+    console.warn('Could not load stored coordinates:', error);
+    return {};
+  }
+}
+
+async function saveStoredCoordinates(coordinates: { [key: string]: CoordinateMap }): Promise<void> {
+  try {
+    // In production, this would save to a backend
+    // For now, we'll just cache in memory
+    console.log('Coordinates would be saved to persistent storage:', coordinates);
+  } catch (error) {
+    console.warn('Could not save coordinates:', error);
+  }
+}
+
 // Canonical template hashes for embedded templates
 const CANONICAL_15G_HASH = "embedded_15g_template"; // Placeholder - using embedded template
 const CANONICAL_15H_HASH = "embedded_15h_template"; // Placeholder - using embedded template
@@ -71,30 +93,73 @@ class TemplateManager {
    * Get or detect coordinate map for template
    */
   async getCoordinateMap(file: File, formType: '15G' | '15H'): Promise<CoordinateMap> {
+    console.log(`🗺️ Getting coordinate map for Form ${formType}`);
+    
     const hash = await this.calculatePdfHash(file);
-    const cached = this.getCachedTemplate(hash);
+    const cacheKey = `${hash}_${formType}`;
+    
+    // Check memory cache first
+    const cached = this.getCachedTemplate(cacheKey);
     
     if (cached?.coordinateMap) {
+      console.log('📋 Found cached coordinates, validating...');
       // Validate cached coordinates
-      const validation = await validateAnchors(file, cached.coordinateMap, formType);
-      if (validation.valid) {
-        return cached.coordinateMap;
-      } else {
-        console.warn('Cached coordinates invalid, re-detecting:', validation.errors);
+      try {
+        const validation = await validateAnchors(file, cached.coordinateMap, formType);
+        if (validation.valid) {
+          console.log('✅ Cached coordinates are valid');
+          return cached.coordinateMap;
+        } else {
+          console.warn('⚠️ Cached coordinates invalid, re-detecting:', validation.errors);
+        }
+      } catch (error) {
+        console.warn('❌ Validation failed, re-detecting:', error);
       }
     }
 
+    // Load from persistent storage
+    const storedCoordinates = await loadStoredCoordinates();
+    const storedMap = storedCoordinates[cacheKey];
+    
+    if (storedMap) {
+      console.log('💾 Found stored coordinates, validating...');
+      try {
+        const validation = await validateAnchors(file, storedMap, formType);
+        if (validation.valid) {
+          // Cache in memory and return
+          this.cacheTemplate(cacheKey, {
+            hash,
+            pageSize: { width: storedMap.pageWidth, height: storedMap.pageHeight },
+            detectedAnchors: {},
+            coordinateMap: storedMap
+          });
+          console.log('✅ Stored coordinates are valid');
+          return storedMap;
+        } else {
+          console.warn('⚠️ Stored coordinates invalid, re-detecting:', validation.errors);
+        }
+      } catch (error) {
+        console.warn('❌ Stored validation failed, re-detecting:', error);
+      }
+    }
+
+    console.log('🔍 Detecting new coordinates...');
     // Detect new coordinates
     const coordinateMap = await detectCoordinates(file, formType);
     
-    // Cache the result
-    this.cacheTemplate(hash, {
+    // Cache in memory
+    this.cacheTemplate(cacheKey, {
       hash,
       pageSize: { width: coordinateMap.pageWidth, height: coordinateMap.pageHeight },
       detectedAnchors: {},
       coordinateMap
     });
 
+    // Save to persistent storage
+    const updatedStorage = { ...storedCoordinates, [cacheKey]: coordinateMap };
+    await saveStoredCoordinates(updatedStorage);
+
+    console.log('✅ New coordinates detected and cached');
     return coordinateMap;
   }
 

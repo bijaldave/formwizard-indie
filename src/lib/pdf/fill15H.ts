@@ -8,14 +8,24 @@ export interface Form15HData {
   name: string;
   pan: string;
   address: string;
+  previous_year: string;
+  assessment_year: string;
+  residential_status: string;
   assessed_yes: boolean;
   assessed_no: boolean;
   latest_ay: string;
-  income_amount: string;
+  estimated_income_current: string;
+  estimated_income_total: string;
+  boid: string;
   nature_income: string;
   section: string;
+  dividend_amount: string;
+  form_count: string;
+  form_amount: string;
   signature?: string;
   place_date: string;
+  declaration_fy_end: string;
+  declaration_ay: string;
 }
 
 /**
@@ -23,6 +33,10 @@ export interface Form15HData {
  */
 export function profileToForm15HData(profile: Profile, dividend: DividendRow): Form15HData {
   const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const financialYear = profile.financialYear || `${currentYear}-${(currentYear + 1).toString().slice(-2)}`;
+  const assessmentYear = profile.assessmentYear || `${currentYear + 1}-${(currentYear + 2).toString().slice(-2)}`;
+  const previousYear = `${currentYear - 1}-${currentYear.toString().slice(-2)}`;
   
   const addressParts = [
     profile.addr_flat,
@@ -34,22 +48,49 @@ export function profileToForm15HData(profile: Profile, dividend: DividendRow): F
     profile.addr_pin
   ].filter(Boolean);
   
+  // Use updated field names with fallbacks for compatibility
+  const estimatedIncomeTotal = profile.estimatedIncomeTotal || profile.income_total_fy || dividend.total;
+  const formCount = profile.formCount || profile.other_forms_count || 0;
+  const formAmount = profile.formAmount || profile.other_forms_amount || 0;
+  
   return {
     name: profile.name,
     pan: profile.pan,
     address: addressParts.join(', '),
+    previous_year: previousYear,
+    assessment_year: assessmentYear,
+    residential_status: profile.residential_status === 'NRI' ? 'Non-Resident' : 'Resident',
     assessed_yes: profile.assessed_to_tax === 'Yes',
     assessed_no: profile.assessed_to_tax === 'No',
-    latest_ay: profile.latest_ay || `${currentDate.getFullYear()}-${(currentDate.getFullYear() + 1).toString().slice(-2)}`,
-    income_amount: dividend.total.toLocaleString('en-IN', { 
+    latest_ay: profile.assessmentYearPrevious || profile.latest_ay || assessmentYear,
+    estimated_income_current: dividend.total.toLocaleString('en-IN', { 
       style: 'currency', 
       currency: 'INR',
       minimumFractionDigits: 2 
     }),
+    estimated_income_total: estimatedIncomeTotal.toLocaleString('en-IN', { 
+      style: 'currency', 
+      currency: 'INR',
+      minimumFractionDigits: 2 
+    }),
+    boid: profile.boid,
     nature_income: 'Dividend',
     section: '194',
+    dividend_amount: dividend.total.toLocaleString('en-IN', { 
+      style: 'currency', 
+      currency: 'INR',
+      minimumFractionDigits: 2 
+    }),
+    form_count: formCount.toString(),
+    form_amount: formAmount.toLocaleString('en-IN', { 
+      style: 'currency', 
+      currency: 'INR',
+      minimumFractionDigits: 2 
+    }),
     signature: profile.signature,
-    place_date: `${profile.addr_city || 'Place'}, ${currentDate.toLocaleDateString('en-IN')}`
+    place_date: `Mumbai, ${currentDate.toLocaleDateString('en-IN')}`,
+    declaration_fy_end: profile.financialYearEnd || `31-03-${currentYear}`,
+    declaration_ay: assessmentYear
   };
 }
 
@@ -99,10 +140,19 @@ async function fillAll15HFieldsExact(
   const textFieldMappings = [
     { field: 'name', value: data.name },
     { field: 'pan', value: data.pan },
+    { field: 'previous_year', value: data.previous_year },
+    { field: 'assessment_year', value: data.assessment_year },
     { field: 'latest_ay', value: data.latest_ay },
-    { field: 'income_amount', value: data.income_amount },
+    { field: 'estimated_income_current', value: data.estimated_income_current },
+    { field: 'estimated_income_total', value: data.estimated_income_total },
+    { field: 'boid', value: data.boid },
     { field: 'nature_income', value: data.nature_income },
-    { field: 'section', value: data.section }
+    { field: 'section', value: data.section },
+    { field: 'dividend_amount', value: data.dividend_amount },
+    { field: 'form_count', value: data.form_count },
+    { field: 'form_amount', value: data.form_amount },
+    { field: 'declaration_fy_end', value: data.declaration_fy_end },
+    { field: 'declaration_ay', value: data.declaration_ay }
   ];
 
   for (const mapping of textFieldMappings) {
@@ -117,6 +167,7 @@ async function fillAll15HFieldsExact(
   }
 
   const checkboxMappings = [
+    { field: 'residential_status', value: data.residential_status === 'Resident' },
     { field: 'assessed_yes', value: data.assessed_yes },
     { field: 'assessed_no', value: data.assessed_no }
   ];

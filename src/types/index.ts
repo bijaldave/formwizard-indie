@@ -16,13 +16,23 @@ export type Profile = {
   assessed_to_tax: 'Yes' | 'No';
   latest_ay: string;
   fy_label: string;
-  income_for_decl: number;
-  income_total_fy: number;
-  other_forms_count: number;
-  other_forms_amount: number;
+  // Updated field names to match user mapping
+  estimatedIncomeCurrent: number;  // income_for_decl
+  estimatedIncomeTotal: number;    // income_total_fy
+  assessmentYearPrevious?: string; // latest AY if assessed
+  formCount: number;               // other_forms_count
+  formAmount: number;              // other_forms_amount
   boid: string;
   signature?: string; // base64 image
+  financialYear?: string;
+  assessmentYear?: string;
+  financialYearEnd?: string;
   ack_15g_over_exemption?: boolean;
+  // Legacy fields for backward compatibility
+  income_for_decl?: number;
+  income_total_fy?: number;
+  other_forms_count?: number;
+  other_forms_amount?: number;
 };
 
 export type DividendRow = {
