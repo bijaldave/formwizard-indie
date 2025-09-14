@@ -8,8 +8,8 @@ import { WelcomePage } from "@/pages/WelcomePage";
 import { AuthPage } from "@/pages/AuthPage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { HoldingsPage } from "@/pages/HoldingsPage";
-
 import { DashboardPage } from "@/pages/DashboardPage";
+import { CalibrationPage } from "@/pages/CalibrationPage";
 
 import NotFound from "./pages/NotFound";
 
@@ -26,8 +26,8 @@ const App = () => (
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/holdings" element={<ProtectedRoute><HoldingsPage /></ProtectedRoute>} />
-          
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/calibrate/:formType" element={<ProtectedRoute><CalibrationPage /></ProtectedRoute>} />
           
           <Route path="*" element={<NotFound />} />
         </Routes>

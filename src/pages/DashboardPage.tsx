@@ -11,11 +11,14 @@ import { isProfileComplete } from '@/lib/validation';
 import { getFormType, getFormDisplayName, calculateAge } from '@/lib/utils/ageUtils';
 import { fillForm15G, profileToForm15GData } from '@/lib/pdf/fill15G';
 import { fillForm15H, profileToForm15HData } from '@/lib/pdf/fill15H';
+import { fillForm15GAcroForm } from '@/lib/pdf/acroFormFiller';
+import { fillForm15HAcroForm } from '@/lib/pdf/acroFormFiller';
+import { validateAcroFormShell } from '@/lib/pdf/calibration';
 import { loadEmbeddedTemplate } from '@/lib/templateLoader';
 import { DividendEntryDialog } from '@/components/forms/DividendEntryDialog';
 import { FormPreviewDialog } from '@/components/forms/FormPreviewDialog';
 
-import { ArrowLeft, FileText, AlertCircle, CheckCircle, Clock, Download, Upload, Eye, RefreshCw, LogOut, Trash2, MoreVertical } from 'lucide-react';
+import { ArrowLeft, FileText, AlertCircle, CheckCircle, Clock, Download, Upload, Eye, RefreshCw, LogOut, Trash2, MoreVertical, Settings } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
@@ -126,14 +129,31 @@ export const DashboardPage = () => {
       let pdfBytes: Uint8Array;
       let formDisplayName: string;
 
-      if (formType === '15g') {
-        const form15GData = profileToForm15GData(profile as Profile, dividend);
-        pdfBytes = await fillForm15G(templateFile, form15GData, debugMode);
-        formDisplayName = 'Form 15G';
+      // Try AcroForm approach first, fallback to coordinate-based approach
+      const acroFormValidation = await validateAcroFormShell(templateFile, formType.toUpperCase());
+
+      if (acroFormValidation.valid) {
+        console.log('Using AcroForm approach for PDF generation');
+        if (formType === '15g') {
+          const form15GData = profileToForm15GData(profile as Profile, dividend);
+          pdfBytes = await fillForm15GAcroForm(templateFile, form15GData);
+          formDisplayName = 'Form 15G';
+        } else {
+          const form15HData = profileToForm15HData(profile as Profile, dividend);
+          pdfBytes = await fillForm15HAcroForm(templateFile, form15HData);
+          formDisplayName = 'Form 15H';
+        }
       } else {
-        const form15HData = profileToForm15HData(profile as Profile, dividend);
-        pdfBytes = await fillForm15H(templateFile, form15HData, debugMode);
-        formDisplayName = 'Form 15H';
+        console.log('Using coordinate-based approach for PDF generation:', acroFormValidation.reason);
+        if (formType === '15g') {
+          const form15GData = profileToForm15GData(profile as Profile, dividend);
+          pdfBytes = await fillForm15G(templateFile, form15GData, debugMode);
+          formDisplayName = 'Form 15G';
+        } else {
+          const form15HData = profileToForm15HData(profile as Profile, dividend);
+          pdfBytes = await fillForm15H(templateFile, form15HData, debugMode);
+          formDisplayName = 'Form 15H';
+        }
       }
 
       // Create downloadable blob
@@ -359,6 +379,15 @@ export const DashboardPage = () => {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => navigate('/profile')}>
                         Edit Profile
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => navigate('/calibrate/15G')}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Calibrate Form 15G
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate('/calibrate/15H')}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Calibrate Form 15H
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <AlertDialog>
