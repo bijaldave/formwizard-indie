@@ -3,8 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, FileText, AlertCircle } from 'lucide-react';
-import { parseHoldingsFile, ParseResult, CanonicalKey } from '@/lib/holdings-parser';
-import { HeaderMappingDialog } from './HeaderMappingDialog';
+import { parseHoldingsFile, ParseResult } from '@/lib/holdings-parser';
 
 interface HoldingsUploadProps {
   onHoldingsParsed: (result: ParseResult) => void;
@@ -13,10 +12,6 @@ interface HoldingsUploadProps {
 export function HoldingsUpload({ onHoldingsParsed }: HoldingsUploadProps) {
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
-  const [mappingDialog, setMappingDialog] = useState<{
-    open: boolean;
-    requiresMapping?: NonNullable<ParseResult['requiresMapping']>;
-  }>({ open: false });
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -50,16 +45,18 @@ export function HoldingsUpload({ onHoldingsParsed }: HoldingsUploadProps) {
     try {
       const result = await parseHoldingsFile(file);
       
+      // Always pass the result to parent - let parent handle mapping dialog
+      onHoldingsParsed(result);
+      
       if (result.requiresMapping) {
-        // Show mapping dialog for ambiguous columns
-        setMappingDialog({
-          open: true,
-          requiresMapping: result.requiresMapping
+        // Show warning toast that mapping will be required
+        toast({
+          title: 'Column mapping required',
+          description: 'Some columns need manual mapping. Please review the mapping dialog.',
+          variant: 'default'
         });
       } else {
         // Auto-mapped successfully
-        onHoldingsParsed(result);
-        
         const { parsingInfo } = result;
         let toastTitle = `Parsed ${parsingInfo.rawRows} rows → ${result.holdings.length} holdings`;
         
@@ -98,48 +95,9 @@ export function HoldingsUpload({ onHoldingsParsed }: HoldingsUploadProps) {
     }
   };
 
-  const handleMappingConfirm = async (mapping: Record<CanonicalKey, string>) => {
-    if (!mappingDialog.requiresMapping) return;
-    
-    try {
-      setIsUploading(true);
-      
-      // For now, we'll create a simple result since the full data isn't available
-      // In a real implementation, you'd want to re-parse with the mapping
-      const result: ParseResult = {
-        holdings: [],
-        parsingInfo: {
-          headerRow: 1,
-          sheetName: 'Mapped',
-          confidence: 100,
-          totalRows: 0,
-          rawRows: 0,
-          warnings: []
-        }
-      };
-      
-      onHoldingsParsed(result);
-      
-      toast({
-        title: 'Mapping saved',
-        description: 'Column mapping saved successfully. We\'ll use this for similar files in the future.'
-      });
-      
-      setMappingDialog({ open: false });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Mapping failed',
-        description: error instanceof Error ? error.message : 'Could not apply column mapping'
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
 
   return (
-    <>
-      <Card>
+    <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
@@ -210,13 +168,5 @@ export function HoldingsUpload({ onHoldingsParsed }: HoldingsUploadProps) {
           </div>
         </CardContent>
       </Card>
-
-      <HeaderMappingDialog
-        open={mappingDialog.open}
-        onClose={() => setMappingDialog({ open: false })}
-        requiresMapping={mappingDialog.requiresMapping!}
-        onConfirm={handleMappingConfirm}
-      />
-    </>
   );
 }
