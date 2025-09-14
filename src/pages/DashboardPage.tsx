@@ -10,6 +10,9 @@ import { DividendRow, Profile, GeneratedForm } from '@/types';
 import { isProfileComplete } from '@/lib/validation';
 import { getFormType, getFormDisplayName, calculateAge } from '@/lib/utils/ageUtils';
 import { generateForm } from '@/lib/pdf/fillAcro';
+import { loadEmbeddedTemplate } from '@/lib/templateLoader';
+import { profileToForm15GData, fillForm15G } from '@/lib/pdf/fill15G';
+import { profileToForm15HData, fillForm15H } from '@/lib/pdf/fill15H';
 import { DividendEntryDialog } from '@/components/forms/DividendEntryDialog';
 import { FormPreviewDialog } from '@/components/forms/FormPreviewDialog';
 
@@ -28,6 +31,7 @@ export const DashboardPage = () => {
   const [previewForm, setPreviewForm] = useState<GeneratedForm | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [acroTemplatesAvailable, setAcroTemplatesAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     const savedHoldings = getHoldings();
@@ -108,8 +112,43 @@ export const DashboardPage = () => {
     setIsGenerating(true);
 
     try {
-      // Use new clean AcroForm approach
-      const { blob, formType, filename } = await generateForm(profile as Profile, dividend);
+      let blob: Blob;
+      let formType: '15g' | '15h';
+      let filename: string;
+
+      try {
+        // Try AcroForm approach first
+        const result = await generateForm(profile as Profile, dividend);
+        blob = result.blob;
+        formType = result.formType;
+        filename = result.filename;
+      } catch (acroError) {
+        // Fall back to legacy coordinate-based filling
+        console.warn('AcroForm generation failed, falling back to legacy templates:', acroError);
+        
+        toast({
+          title: 'Using Legacy Templates',
+          description: 'AcroForm templates not found, using coordinate-based filling.',
+          variant: 'default'
+        });
+
+        formType = getFormType(profile as Profile);
+        const templateFile = await loadEmbeddedTemplate(formType);
+        
+        if (formType === '15g') {
+          const form15GData = profileToForm15GData(profile as Profile, dividend);
+          const pdfBytes = await fillForm15G(templateFile, form15GData, false);
+          blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        } else {
+          const form15HData = profileToForm15HData(profile as Profile, dividend);
+          const pdfBytes = await fillForm15H(templateFile, form15HData, false);
+          blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        }
+        
+        // Generate legacy filename
+        const sanitizedName = profile.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'User';
+        filename = `Form15${formType.toUpperCase()}_${profile.fy_label || 'FY'}_${sanitizedName}_${dividend.symbol}.pdf`;
+      }
       
       // Download the file
       const url = URL.createObjectURL(blob);
@@ -374,6 +413,23 @@ export const DashboardPage = () => {
                 </div>
               </CardHeader>
               <CardContent>
+                {acroTemplatesAvailable === false && (
+                  <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-800">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-yellow-800 dark:text-yellow-200">
+                          AcroForm Templates Missing
+                        </h4>
+                        <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                          Using legacy coordinate-based templates. For better reliability, add AcroForm templates to{' '}
+                          <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">public/templates/</code>.{' '}
+                          <a href="/templates/README.md" target="_blank" className="underline">View instructions</a>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
                   <div className="p-4 bg-muted rounded-lg">
                     <div className="text-2xl font-bold text-primary">{dividends.length}</div>
