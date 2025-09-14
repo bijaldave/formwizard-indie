@@ -188,12 +188,12 @@ export const ProfilePage = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="boid">BO ID (16-digit DP+Client) *</Label>
+                  <Label htmlFor="boid">BO ID (16-character DP+Client) *</Label>
                   <Input
                     id="boid"
                     value={profile.boid || ''}
                     onChange={(e) => setProfileState(prev => ({ ...prev, boid: e.target.value }))}
-                    placeholder="1234567890123456"
+                    placeholder="IN30123456789012"
                     maxLength={16}
                   />
                   {errors.boid && <p className="text-sm text-destructive mt-1">{errors.boid}</p>}

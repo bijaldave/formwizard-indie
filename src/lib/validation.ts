@@ -42,8 +42,8 @@ export const validatePIN = (pin: string): string | null => {
 
 export const validateBOID = (boid: string): string | null => {
   if (!boid) return 'BO ID is required';
-  if (boid.length !== 16) return `Enter 16 digits (DP+Client). You entered ${boid.length}`;
-  if (!/^\d{16}$/.test(boid)) return 'BO ID must contain only numbers';
+  if (boid.length !== 16) return `Enter 16 characters (DP+Client). You entered ${boid.length}`;
+  if (!/^[A-Z0-9]{16}$/i.test(boid)) return 'BO ID must contain only letters and numbers';
   return null;
 };
 
