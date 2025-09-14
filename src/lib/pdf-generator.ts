@@ -2,36 +2,35 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { Profile, DividendRow, FieldMapping } from '@/types';
 import { getAgeFromDOB } from './validation';
 
-// Field mappings for Form 15G - Part A (Based on filled form analysis)
+// Field mappings for Form 15G - Corrected coordinates based on actual form
 const FORM_15G_FIELDS: Record<string, FieldMapping> = {
-  name: { xPct: 0.35, yPct: 0.162, wPct: 0.50, hPct: 0.020 },
-  pan: { xPct: 0.35, yPct: 0.197, wPct: 0.25, hPct: 0.020 },
-  dob: { xPct: 0.65, yPct: 0.197, wPct: 0.20, hPct: 0.020 },
-  status_individual: { xPct: 0.28, yPct: 0.232, wPct: 0.015, hPct: 0.015 },
-  status_huf: { xPct: 0.37, yPct: 0.232, wPct: 0.015, hPct: 0.015 },
-  previous_year: { xPct: 0.35, yPct: 0.267, wPct: 0.20, hPct: 0.020 },
-  resident_yes: { xPct: 0.28, yPct: 0.302, wPct: 0.015, hPct: 0.015 },
-  resident_no: { xPct: 0.35, yPct: 0.302, wPct: 0.015, hPct: 0.015 },
-  addr_flat: { xPct: 0.35, yPct: 0.337, wPct: 0.50, hPct: 0.020 },
-  addr_premises: { xPct: 0.35, yPct: 0.372, wPct: 0.50, hPct: 0.020 },
-  addr_street: { xPct: 0.35, yPct: 0.407, wPct: 0.50, hPct: 0.020 },
-  addr_area: { xPct: 0.35, yPct: 0.442, wPct: 0.25, hPct: 0.020 },
-  addr_city: { xPct: 0.62, yPct: 0.442, wPct: 0.23, hPct: 0.020 },
-  addr_state: { xPct: 0.35, yPct: 0.477, wPct: 0.25, hPct: 0.020 },
-  addr_pin: { xPct: 0.62, yPct: 0.477, wPct: 0.15, hPct: 0.020 },
-  email: { xPct: 0.35, yPct: 0.512, wPct: 0.50, hPct: 0.020 },
-  phone: { xPct: 0.35, yPct: 0.547, wPct: 0.25, hPct: 0.020 },
-  assessed_yes: { xPct: 0.28, yPct: 0.582, wPct: 0.015, hPct: 0.015 },
-  assessed_no: { xPct: 0.35, yPct: 0.582, wPct: 0.015, hPct: 0.015 },
-  latest_ay: { xPct: 0.50, yPct: 0.582, wPct: 0.20, hPct: 0.020 },
-  income_nature: { xPct: 0.35, yPct: 0.617, wPct: 0.25, hPct: 0.020 },
-  income_estimated: { xPct: 0.62, yPct: 0.617, wPct: 0.23, hPct: 0.020 },
-  income_total: { xPct: 0.35, yPct: 0.652, wPct: 0.25, hPct: 0.020 },
-  other_forms_count: { xPct: 0.35, yPct: 0.687, wPct: 0.15, hPct: 0.020 },
-  other_forms_amount: { xPct: 0.52, yPct: 0.687, wPct: 0.20, hPct: 0.020 },
-  boid: { xPct: 0.35, yPct: 0.722, wPct: 0.40, hPct: 0.020 },
-  dividend_amount: { xPct: 0.75, yPct: 0.757, wPct: 0.15, hPct: 0.020 },
-  signature: { xPct: 0.65, yPct: 0.875, wPct: 0.25, hPct: 0.060 },
+  name: { xPct: 0.05, yPct: 0.232, wPct: 0.40, hPct: 0.020 },
+  pan: { xPct: 0.48, yPct: 0.232, wPct: 0.15, hPct: 0.020 },
+  dob: { xPct: 0.70, yPct: 0.232, wPct: 0.12, hPct: 0.020 },
+  status_individual: { xPct: 0.65, yPct: 0.252, wPct: 0.015, hPct: 0.015 },
+  status_huf: { xPct: 0.72, yPct: 0.252, wPct: 0.015, hPct: 0.015 },
+  previous_year: { xPct: 0.80, yPct: 0.232, wPct: 0.15, hPct: 0.020 },
+  resident_yes: { xPct: 0.85, yPct: 0.252, wPct: 0.015, hPct: 0.015 },
+  resident_no: { xPct: 0.92, yPct: 0.252, wPct: 0.015, hPct: 0.015 },
+  addr_flat: { xPct: 0.05, yPct: 0.292, wPct: 0.20, hPct: 0.020 },
+  addr_premises: { xPct: 0.27, yPct: 0.292, wPct: 0.20, hPct: 0.020 },
+  addr_street: { xPct: 0.49, yPct: 0.292, wPct: 0.20, hPct: 0.020 },
+  addr_area: { xPct: 0.71, yPct: 0.292, wPct: 0.24, hPct: 0.020 },
+  addr_city: { xPct: 0.05, yPct: 0.312, wPct: 0.20, hPct: 0.020 },
+  addr_state: { xPct: 0.27, yPct: 0.312, wPct: 0.20, hPct: 0.020 },
+  addr_pin: { xPct: 0.49, yPct: 0.312, wPct: 0.15, hPct: 0.020 },
+  email: { xPct: 0.71, yPct: 0.312, wPct: 0.24, hPct: 0.020 },
+  phone: { xPct: 0.05, yPct: 0.332, wPct: 0.25, hPct: 0.020 },
+  assessed_yes: { xPct: 0.42, yPct: 0.352, wPct: 0.015, hPct: 0.015 },
+  assessed_no: { xPct: 0.50, yPct: 0.352, wPct: 0.015, hPct: 0.015 },
+  latest_ay: { xPct: 0.70, yPct: 0.352, wPct: 0.20, hPct: 0.020 },
+  income_nature: { xPct: 0.05, yPct: 0.392, wPct: 0.25, hPct: 0.020 },
+  income_estimated: { xPct: 0.32, yPct: 0.392, wPct: 0.20, hPct: 0.020 },
+  income_total: { xPct: 0.54, yPct: 0.392, wPct: 0.20, hPct: 0.020 },
+  other_forms_count: { xPct: 0.05, yPct: 0.412, wPct: 0.15, hPct: 0.020 },
+  other_forms_amount: { xPct: 0.22, yPct: 0.412, wPct: 0.20, hPct: 0.020 },
+  boid: { xPct: 0.44, yPct: 0.412, wPct: 0.30, hPct: 0.020 },
+  signature: { xPct: 0.70, yPct: 0.85, wPct: 0.25, hPct: 0.060 },
 };
 
 // Field mappings for Form 15H - Part I
@@ -190,8 +189,7 @@ export const generatePDF = async (
   // BO ID
   drawText('boid', profile.boid || '');
   
-  // Dividend amount in the table
-  drawText('dividend_amount', String(dividend.total ?? ''));
+  // Note: Dividend amount field removed as not required
   
   // Signature
   if (profile.signature && fields.signature) {
