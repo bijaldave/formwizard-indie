@@ -49,37 +49,63 @@ export interface CoordinateMap {
 
 // Form field labels for detection (normalized)
 const FORM_15G_LABELS = {
-  'name': ['name of assessee', 'name of declarant', 'assessee name'],
-  'pan': ['pan of the assessee', 'pan of assessee', 'pan number'],
-  'addr_flat': ['flat', 'door no', 'house no'],
-  'addr_premises': ['name of premises', 'building', 'premises'],
-  'addr_street': ['road street', 'street', 'road'],
-  'addr_area': ['area locality', 'area', 'locality'],
-  'addr_city': ['town city', 'city', 'town'],
-  'addr_state': ['state', 'state name'],
-  'addr_pin': ['pin', 'pincode', 'postal code'],
-  'email': ['email', 'e-mail'],
-  'phone': ['phone', 'telephone', 'mobile'],
-  'assessed_yes': ['assessed to tax', 'assessed for tax'],
-  'latest_ay': ['latest assessment year', 'assessment year'],
-  'income_for_decl': ['amount of income', 'income amount'],
-  'boid': ['demat account', 'boid', 'dp id'],
-  'nature_income': ['nature of income', 'income type'],
-  'section': ['section', 'under section'],
-  'dividend_amount': ['amount rs', 'amount in rs'],
-  'signature': ['signature of declarant', 'signature']
+  name: [
+    'name of assessee',
+    'name of the assessee',
+    'name of assessee declarant',
+    'name of the declarant',
+    'name of declarant'
+  ],
+  pan: ['pan of the assessee', 'pan of assessee', 'pan number'],
+  previous_year: ['previous year', 'p y ending on', 'previous year ending'],
+  assessment_year: ['assessment year', 'relevant to the assessment year', 'ay'],
+  residential_status: ['residential status', 'resident status', 'resident nri'],
+  addr_flat: ['flat door block no', 'flat door block', 'house number', 'door number', 'flat number'],
+  addr_premises: ['name of premises', 'building', 'premises building village'],
+  addr_street: ['road street lane post office', 'road street', 'street', 'lane'],
+  addr_area: ['area locality taluka sub division', 'area locality', 'locality'],
+  addr_city: ['town city district', 'town city', 'city', 'district'],
+  addr_state: ['state', 'state name'],
+  addr_pin: ['pin', 'pin code', 'pincode', 'postal code'],
+  email: ['email', 'e mail'],
+  phone: ['telephone mobile no', 'telephone', 'mobile'],
+  assessed_yes: ['whether assessed to tax', 'assessed to tax under income tax act'],
+  assessed_no: ['whether assessed to tax', 'assessed to tax under income tax act'],
+  latest_ay: ['latest assessment year for which assessed', 'latest assessment year'],
+  estimated_income_current: ['estimated income for which declaration is made', 'estimated income for declaration'],
+  estimated_income_total: ['estimated total income of the p y', 'estimated total income of the previous year'],
+  boid: ['identification number', 'bo id', 'demat account number', 'dp id'],
+  nature_income: ['nature of income', 'income type'],
+  section: ['section', 'under section'],
+  dividend_amount: ['amount of income', 'amount rs', 'amount in rs'],
+  form_count: ['total number of form 15g', 'total number of form 15h', 'total number of forms filed'],
+  form_amount: ['aggregate amount of income for which form 15g', 'aggregate amount of income for which form 15h'],
+  declaration_fy_end: ['p y ending on', 'previous year ending on'],
+  declaration_ay: ['ay', 'assessment year'],
+  signature: ['signature of the declarant', 'signature']
 };
 
 const FORM_15H_LABELS = {
-  'name': ['name of assessee', 'assessee name'],
-  'pan': ['pan of the assessee', 'pan number'],
-  'address': ['address', 'residential address'],
-  'assessed_yes': ['assessed to tax', 'assessed for tax'],
-  'latest_ay': ['latest assessment year', 'assessment year'],
-  'income_amount': ['amount of income', 'income amount'],
-  'nature_income': ['nature of income', 'income type'],
-  'section': ['section', 'under section'],
-  'signature': ['signature of senior citizen', 'signature']
+  name: ['name of assessee', 'assessee name', 'name of the assessee'],
+  pan: ['pan of the assessee', 'pan number'],
+  address: ['address', 'residential address'],
+  previous_year: ['previous year', 'p y ending on', 'previous year ending'],
+  assessment_year: ['assessment year', 'relevant to the assessment year', 'ay'],
+  residential_status: ['residential status', 'resident status', 'resident nri'],
+  assessed_yes: ['whether assessed to tax', 'assessed for tax'],
+  assessed_no: ['whether assessed to tax', 'assessed for tax'],
+  latest_ay: ['latest assessment year for which assessed', 'assessment year'],
+  estimated_income_current: ['estimated income for which declaration is made'],
+  estimated_income_total: ['estimated total income of the p y'],
+  boid: ['identification number', 'bo id', 'demat account number', 'dp id'],
+  nature_income: ['nature of income', 'income type'],
+  section: ['section', 'under section'],
+  dividend_amount: ['amount of income', 'amount rs', 'amount in rs'],
+  form_count: ['total number of form 15h', 'total number of forms filed'],
+  form_amount: ['aggregate amount of income for which form 15h'],
+  declaration_fy_end: ['p y ending on', 'previous year ending on'],
+  declaration_ay: ['ay', 'assessment year'],
+  signature: ['signature of senior citizen', 'signature of the declarant', 'signature']
 };
 
 /**
@@ -251,8 +277,12 @@ function detectLabelAnchors(
       for (const labelVariant of labelVariants) {
         const normalizedLabel = normalizeText(labelVariant);
         const confidence = calculateSimilarity(normalizedPhrase, normalizedLabel);
+        const labelTokens = new Set(normalizedLabel.split(' '));
+        const phraseTokens = new Set(normalizedPhrase.split(' '));
+        const intersection = [...labelTokens].filter(t => phraseTokens.has(t));
+        const tokenOverlap = intersection.length / Math.max(1, labelTokens.size);
 
-        if (confidence >= 0.7 && (!bestMatch || confidence > bestMatch.confidence)) {
+        if ((confidence >= 0.6 || tokenOverlap >= 0.6) && (!bestMatch || confidence > bestMatch.confidence)) {
           bestMatch = { phrase, confidence };
         }
       }
@@ -287,67 +317,91 @@ function discoverInputBoxes(
 ): { [fieldKey: string]: InputBox } {
   const inputBoxes: { [fieldKey: string]: InputBox } = {};
 
+  const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
+
   for (const [fieldKey, anchor] of Object.entries(anchors)) {
     let inputBox: InputBox;
 
-    // Special handling for different field types
     switch (fieldKey) {
-      case 'signature':
-        // Signature box is usually below the label
+      case 'signature': {
+        const x = clamp(anchor.x, 10, pageWidth - 210);
+        const y = clamp(anchor.y - 60, 10, pageHeight - 60);
         inputBox = {
-          x: anchor.x,
-          y: anchor.y - 60, // Below the label
+          x,
+          y,
           width: 200,
           height: 50,
-          xPct: anchor.x / pageWidth,
-          yPct: (anchor.y - 60) / pageHeight,
+          xPct: x / pageWidth,
+          yPct: y / pageHeight,
           wPct: 200 / pageWidth,
           hPct: 50 / pageHeight
         };
         break;
+      }
 
       case 'assessed_yes':
-      case 'assessed_no':
-        // Small checkbox
+      case 'assessed_no': {
+        const baseX = anchor.x + anchor.width + 10;
+        const offset = fieldKey === 'assessed_no' ? 60 : 0;
+        const xRaw = baseX + offset;
+        const x = clamp(xRaw, 10, pageWidth - 12 - 10);
+        const y = clamp(anchor.y, 10, pageHeight - 12 - 10);
         inputBox = {
-          x: anchor.x + anchor.width + 10,
-          y: anchor.y,
+          x,
+          y,
           width: 12,
           height: 12,
-          xPct: (anchor.x + anchor.width + 10) / pageWidth,
-          yPct: anchor.y / pageHeight,
+          xPct: x / pageWidth,
+          yPct: y / pageHeight,
           wPct: 12 / pageWidth,
           hPct: 12 / pageHeight
         };
         break;
+      }
 
-      case 'address':
-        // Multi-line address field for 15H
+      case 'address': {
+        const x = clamp(anchor.x, 10, pageWidth - 400 - 10);
+        const y = clamp(anchor.y - 40, 10, pageHeight - 60 - 10);
         inputBox = {
-          x: anchor.x,
-          y: anchor.y - 40,
+          x,
+          y,
           width: 400,
           height: 60,
-          xPct: anchor.x / pageWidth,
-          yPct: (anchor.y - 40) / pageHeight,
+          xPct: x / pageWidth,
+          yPct: y / pageHeight,
           wPct: 400 / pageWidth,
           hPct: 60 / pageHeight
         };
         break;
+      }
 
-      default:
-        // Standard input field to the right of label
+      default: {
+        // Try right of label first
+        let xRight = anchor.x + anchor.width + 10;
+        let maxRightWidth = pageWidth - xRight - 10;
+        let width = clamp(150, 40, maxRightWidth);
+
+        // If not enough space, place to the left of the label
+        if (maxRightWidth < 60) {
+          width = 150;
+          xRight = clamp(anchor.x - width - 10, 10, pageWidth - width - 10);
+        }
+
+        const x = clamp(xRight, 10, pageWidth - width - 10);
+        const y = clamp(anchor.y, 10, pageHeight - 20 - 10);
+
         inputBox = {
-          x: anchor.x + anchor.width + 10,
-          y: anchor.y,
-          width: 150,
+          x,
+          y,
+          width,
           height: 20,
-          xPct: (anchor.x + anchor.width + 10) / pageWidth,
-          yPct: anchor.y / pageHeight,
-          wPct: 150 / pageWidth,
+          xPct: x / pageWidth,
+          yPct: y / pageHeight,
+          wPct: width / pageWidth,
           hPct: 20 / pageHeight
         };
         break;
+      }
     }
 
     inputBoxes[fieldKey] = inputBox;
