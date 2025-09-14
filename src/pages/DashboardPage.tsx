@@ -5,10 +5,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { getDividends, setDividends, getProfile } from '@/lib/storage';
-import { DividendRow, Profile } from '@/types';
+import { getHoldings, getDividends, setDividends, getProfile } from '@/lib/storage';
+import { DividendRow, Profile, HoldingRow } from '@/types';
 import { getAgeFromDOB, isProfileComplete } from '@/lib/validation';
 import { generatePDF, downloadPDF } from '@/lib/pdf-generator';
+import { DividendInputDialog } from '@/components/holdings/DividendInputDialog';
 import { ArrowLeft, FileText, Download, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
 export const DashboardPage = () => {
@@ -16,15 +17,33 @@ export const DashboardPage = () => {
   const { toast } = useToast();
   const [dividends, setDividendsState] = useState<DividendRow[]>([]);
   const [profile, setProfileState] = useState<Partial<Profile>>({});
+  const [dialogState, setDialogState] = useState<{
+    open: boolean;
+    holding?: HoldingRow;
+  }>({ open: false });
 
   useEffect(() => {
+    const savedHoldings = getHoldings();
     const savedDividends = getDividends();
     const savedProfile = getProfile();
-    setDividendsState(savedDividends);
+    
+    // Convert holdings to dividend format for display
+    const holdingDividends: DividendRow[] = savedHoldings.map(holding => {
+      const existingDividend = savedDividends.find(d => d.symbol === holding.symbol);
+      return existingDividend || {
+        symbol: holding.symbol,
+        qty: holding.qty,
+        dps: 0,
+        total: 0,
+        status: 'pending'
+      };
+    });
+    
+    setDividendsState(holdingDividends);
     setProfileState(savedProfile);
   }, []);
 
-  const handleGenerateForm = async (dividend: DividendRow) => {
+  const handleGenerateForm = (dividend: DividendRow) => {
     if (!isProfileComplete(profile)) {
       toast({
         variant: 'destructive',
@@ -35,53 +54,58 @@ export const DashboardPage = () => {
       return;
     }
 
-    // Check if dividend amount is entered
-    if (!dividend.dps || dividend.dps <= 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Please enter dividend per share',
-        description: `Enter the dividend amount for ${dividend.symbol} first.`
-      });
-      navigate('/dividends');
-      return;
-    }
+    // Open dividend input dialog
+    const holding = { symbol: dividend.symbol, qty: dividend.qty };
+    setDialogState({ open: true, holding });
+  };
 
-    // Determine form type based on age
-    const age = getAgeFromDOB(profile.dob_ddmmyyyy || '');
-    const formType = age < 60 ? '15G' : '15H';
+  const handleDividendConfirm = async (dps: number) => {
+    if (!profile || !dialogState.holding) return;
 
-    // Check 15G acknowledgement for high income
-    if (formType === '15G' && profile.income_total_fy && profile.income_total_fy > 250000 && !profile.ack_15g_over_exemption) {
-      toast({
-        variant: 'destructive',
-        title: 'Acknowledgement required',
-        description: 'Please acknowledge the 15G filing for income above exemption limit.'
-      });
-      navigate('/profile');
-      return;
-    }
+    const holding = dialogState.holding;
+    const total = dps * holding.qty;
+    const dividendData: DividendRow = {
+      symbol: holding.symbol,
+      qty: holding.qty,
+      dps,
+      total,
+      status: 'filed'
+    };
 
     try {
-      const fileName = `Form${formType}_PartA_${profile.fy_label}_${profile.name?.replace(/\s+/g, '_')}_${dividend.symbol}.pdf`;
+      // Determine form type based on age
+      const age = getAgeFromDOB(profile.dob_ddmmyyyy || '');
+      const formType = age < 60 ? '15G' : '15H';
+
+      // Check 15G acknowledgement for high income
+      if (formType === '15G' && profile.income_total_fy && profile.income_total_fy > 250000 && !profile.ack_15g_over_exemption) {
+        toast({
+          variant: 'destructive',
+          title: 'Acknowledgement required',
+          description: 'Please acknowledge the 15G filing for income above exemption limit.'
+        });
+        navigate('/profile');
+        return;
+      }
+
+      const fileName = `Form${formType}_PartA_${profile.fy_label}_${profile.name?.replace(/\s+/g, '_')}_${holding.symbol}.pdf`;
       
       // Generate PDF
-      const pdfBytes = await generatePDF(profile as Profile, dividend);
+      const pdfBytes = await generatePDF(profile as Profile, dividendData);
       
       // Download PDF
       downloadPDF(pdfBytes, fileName);
       
-      // Update dividend status to filed
+      // Update dividend status to filed and save dividend data
       const updatedDividends = dividends.map(d => 
-        d.symbol === dividend.symbol
-          ? { ...d, status: 'filed' as const }
-          : d
+        d.symbol === holding.symbol ? dividendData : d
       );
       setDividendsState(updatedDividends);
       setDividends(updatedDividends);
 
       toast({
         title: `Form ${formType} generated successfully!`,
-        description: `Generated for ${dividend.symbol} - ₹${dividend.total.toLocaleString()} dividend`,
+        description: `Generated for ${holding.symbol} - ₹${total.toLocaleString()} dividend`,
       });
       
     } catch (error) {
@@ -92,6 +116,8 @@ export const DashboardPage = () => {
         description: 'Please check your data and try again. Make sure the form template is available.'
       });
     }
+
+    setDialogState({ open: false });
   };
 
   const getStatusIcon = (status: DividendRow['status']) => {
@@ -229,7 +255,12 @@ export const DashboardPage = () => {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {dividend.status === 'ready' ? (
+                            {dividend.status === 'filed' ? (
+                              <Button size="sm" variant="outline" disabled>
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Filed
+                              </Button>
+                            ) : (
                               <Button
                                 size="sm"
                                 onClick={() => handleGenerateForm(dividend)}
@@ -237,19 +268,6 @@ export const DashboardPage = () => {
                               >
                                 <Download className="h-4 w-4 mr-2" />
                                 Generate PDF
-                              </Button>
-                            ) : dividend.status === 'filed' ? (
-                              <Button size="sm" variant="outline" disabled>
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Filed
-                              </Button>
-                            ) : (
-                              <Button 
-                                size="sm" 
-                                variant="ghost"
-                                onClick={() => navigate('/dividends')}
-                              >
-                                Enter Dividend
                               </Button>
                             )}
                           </TableCell>
@@ -310,6 +328,14 @@ export const DashboardPage = () => {
           </div>
         </div>
       </div>
+
+      <DividendInputDialog
+        open={dialogState.open}
+        onClose={() => setDialogState({ open: false })}
+        onConfirm={handleDividendConfirm}
+        symbol={dialogState.holding?.symbol || ''}
+        quantity={dialogState.holding?.qty || 0}
+      />
     </div>
   );
 };

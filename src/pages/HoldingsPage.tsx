@@ -113,7 +113,7 @@ export const HoldingsPage = () => {
       toast({ variant: 'destructive', title: 'Please upload holdings or add them manually' });
       return;
     }
-    navigate('/dividends');
+    navigate('/dashboard');
   };
 
   return (
@@ -155,7 +155,7 @@ export const HoldingsPage = () => {
             {holdings.length > 0 && (
               <div className="flex justify-end">
                 <Button onClick={handleContinue} size="lg">
-                  Continue to Dividend Entry ({holdings.length} holdings)
+                  Continue to Dashboard ({holdings.length} holdings)
                 </Button>
               </div>
             )}

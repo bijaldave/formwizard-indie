@@ -67,7 +67,7 @@ export const generatePDF = async (
   const fields = formType === '15G' ? FORM_15G_FIELDS : FORM_15H_FIELDS;
   
   // Load the template PDF
-  const templatePath = `/forms/Form_${formType === '15G' ? '15G_UPDATED' : '15H'}.pdf`;
+  const templatePath = `/forms/${formType === '15G' ? '15G_UPDATED' : 'Form_15H'}.pdf`;
   const templateBytes = await fetch(templatePath).then(res => res.arrayBuffer());
   
   const pdfDoc = await PDFDocument.load(templateBytes);
