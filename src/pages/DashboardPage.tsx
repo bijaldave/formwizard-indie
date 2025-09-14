@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { getHoldings, getDividends, setDividends, getProfile, getGeneratedForms, addGeneratedForm, removeGeneratedForm } from '@/lib/storage';
+import { getHoldings, getDividends, setDividends, getProfile, getGeneratedForms, addGeneratedForm, removeGeneratedForm, resetHoldingsData, logout } from '@/lib/storage';
 import { DividendRow, Profile, GeneratedForm } from '@/types';
 import { isProfileComplete } from '@/lib/validation';
 import { getFormType, getFormDisplayName, calculateAge } from '@/lib/utils/ageUtils';
@@ -15,7 +15,9 @@ import { loadEmbeddedTemplate } from '@/lib/templateLoader';
 import { DividendEntryDialog } from '@/components/forms/DividendEntryDialog';
 import { FormPreviewDialog } from '@/components/forms/FormPreviewDialog';
 
-import { ArrowLeft, FileText, AlertCircle, CheckCircle, Clock, Download, Upload, Eye, RefreshCw } from 'lucide-react';
+import { ArrowLeft, FileText, AlertCircle, CheckCircle, Clock, Download, Upload, Eye, RefreshCw, LogOut, Trash2, MoreVertical } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
@@ -300,6 +302,25 @@ export const DashboardPage = () => {
   const age = profile.dob_ddmmyyyy ? calculateAge(profile.dob_ddmmyyyy) : 0;
   const formType = age < 60 ? '15G' : '15H';
 
+  const handleLogout = () => {
+    logout();
+    toast({
+      title: 'Logged out successfully',
+      description: 'You have been logged out of your account.'
+    });
+    navigate('/auth');
+  };
+
+  const handleResetHoldings = () => {
+    resetHoldingsData();
+    setDividendsState([]);
+    setGeneratedFormsState([]);
+    toast({
+      title: 'Holdings data reset',
+      description: 'All holdings, dividends, and generated forms have been cleared.'
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-primary/5">
       <div className="container mx-auto px-4 py-8">
@@ -317,13 +338,59 @@ export const DashboardPage = () => {
             {/* Header */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Holdings Dashboard
-                </CardTitle>
-                <CardDescription>
-                  Manage your dividend-paying stocks and generate forms
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Holdings Dashboard
+                    </CardTitle>
+                    <CardDescription>
+                      Manage your dividend-paying stocks and generate forms
+                    </CardDescription>
+                  </div>
+                  
+                  {/* User Menu */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => navigate('/profile')}>
+                        Edit Profile
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Reset Holdings Data
+                          </DropdownMenuItem>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reset Holdings Data</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete all your holdings, dividends, and generated forms. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleResetHoldings} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Reset Data
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleLogout}>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Logout
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">

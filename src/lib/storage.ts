@@ -99,3 +99,21 @@ export const removeGeneratedForm = (formId: string): void => {
   const filtered = forms.filter(f => f.id !== formId);
   setGeneratedForms(filtered);
 };
+
+// Reset holdings data function
+export const resetHoldingsData = (): void => {
+  LocalStorage.remove(STORAGE_KEYS.HOLDINGS);
+  LocalStorage.remove(STORAGE_KEYS.DIVIDENDS);
+  LocalStorage.remove(STORAGE_KEYS.GENERATED_FORMS);
+};
+
+// Logout function
+export const logout = (): void => {
+  setAuth({
+    phone: '',
+    pinHash: '',
+    isAuthenticated: false,
+    attempts: 0,
+    lastAttempt: 0,
+  });
+};

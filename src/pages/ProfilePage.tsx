@@ -7,10 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { getProfile, setProfile } from '@/lib/storage';
+import { getProfile, setProfile, logout } from '@/lib/storage';
 import { validatePAN, validateDOB, validateEmail, validatePhone, validateBOID, validatePinCode, getAgeFromDOB, getBasicExemptionLimit } from '@/lib/validation';
 import { Profile } from '@/types';
-import { ArrowLeft, User, MapPin, DollarSign, FileText, PenTool } from 'lucide-react';
+import { ArrowLeft, User, MapPin, DollarSign, FileText, PenTool, LogOut } from 'lucide-react';
 import SignatureCanvas from 'signature_pad';
 
 export const ProfilePage = () => {
@@ -124,18 +124,37 @@ export const ProfilePage = () => {
     setProfileState(prev => ({ ...prev, signature: undefined }));
   };
 
+  const handleLogout = () => {
+    logout();
+    toast({
+      title: 'Logged out successfully',
+      description: 'You have been logged out of your account.'
+    });
+    navigate('/auth');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-primary/5">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-2xl mx-auto">
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/auth')}
-            className="mb-6"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+          <div className="flex items-center justify-between mb-6">
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/auth')}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
 
           <div className="space-y-6">
             {/* Personal Information */}
