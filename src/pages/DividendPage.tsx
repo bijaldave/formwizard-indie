@@ -4,12 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { getDividends, setDividends, getProfile } from '@/lib/storage';
-import { DividendRow, Profile } from '@/types';
-import { ArrowLeft, DollarSign, Calculator, FileText, Upload } from 'lucide-react';
+import { getDividends, setDividends, getProfile, getGeneratedForms, addGeneratedForm, removeGeneratedForm } from '@/lib/storage';
+import { DividendRow, Profile, GeneratedForm } from '@/types';
+import { ArrowLeft, DollarSign, Calculator, FileText, Upload, History } from 'lucide-react';
 import { fillForm15G, profileToForm15GData } from '@/lib/pdf/fill15G';
+import { GeneratedFormsManager } from '@/components/forms/GeneratedFormsManager';
+import { FormPreviewDialog } from '@/components/forms/FormPreviewDialog';
 
 export const DividendPage = () => {
   const navigate = useNavigate();
@@ -18,12 +21,17 @@ export const DividendPage = () => {
   const [profile, setProfile] = useState<Partial<Profile>>({});
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedForms, setGeneratedFormsState] = useState<GeneratedForm[]>([]);
+  const [previewForm, setPreviewForm] = useState<GeneratedForm | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     const savedDividends = getDividends();
     const savedProfile = getProfile();
+    const savedForms = getGeneratedForms();
     setDividendsState(savedDividends);
     setProfile(savedProfile);
+    setGeneratedFormsState(savedForms);
   }, []);
 
   const handleDividendChange = (index: number, dps: string) => {
@@ -154,6 +162,30 @@ export const DividendPage = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
+      // Save the generated form
+      const generatedForm: GeneratedForm = {
+        id: `form-${Date.now()}`,
+        type: 'Form15G',
+        generatedAt: new Date().toISOString(),
+        filename: `Form15G_${sanitizedName}_${date}.pdf`,
+        dividends: readyDividends,
+        profileSnapshot: profile as Profile,
+        totalAmount: totalDividend,
+        pdfBlob: blob
+      };
+
+      addGeneratedForm(generatedForm);
+      setGeneratedFormsState([generatedForm, ...generatedForms]);
+
+      // Mark dividends as filed
+      const updatedDividends = dividends.map(d => 
+        readyDividends.some(rd => rd.symbol === d.symbol) 
+          ? { ...d, status: 'filed' as const }
+          : d
+      );
+      setDividendsState(updatedDividends);
+      setDividends(updatedDividends);
+
       toast({
         title: 'Form 15G Generated',
         description: 'Your Form 15G has been generated and downloaded successfully.'
@@ -171,7 +203,35 @@ export const DividendPage = () => {
     }
   };
 
+  const handlePreviewForm = (form: GeneratedForm) => {
+    setPreviewForm(form);
+    setShowPreview(true);
+  };
+
+  const handleDeleteForm = (formId: string) => {
+    removeGeneratedForm(formId);
+    setGeneratedFormsState(generatedForms.filter(f => f.id !== formId));
+    toast({
+      title: 'Form Deleted',
+      description: 'The generated form has been removed.'
+    });
+  };
+
+  const handleRefileForm = (form: GeneratedForm) => {
+    // Update the form in storage with new timestamp
+    const updatedForm = {
+      ...form,
+      generatedAt: new Date().toISOString()
+    };
+    
+    const updatedForms = generatedForms.map(f => 
+      f.id === form.id ? updatedForm : f
+    );
+    setGeneratedFormsState(updatedForms);
+  };
+
   const readyCount = dividends.filter(d => d.status === 'ready').length;
+  const filedCount = dividends.filter(d => d.status === 'filed').length;
   const totalDividend = dividends
     .filter(d => d.status === 'ready')
     .reduce((sum, d) => sum + d.total, 0);
@@ -189,9 +249,21 @@ export const DividendPage = () => {
             Back to Holdings
           </Button>
 
-          <div className="space-y-6">
-            {/* Header */}
-            <Card>
+            <Tabs defaultValue="dividends" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="dividends" className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Dividend Entry
+                </TabsTrigger>
+                <TabsTrigger value="forms" className="flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  Generated Forms ({generatedForms.length})
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="dividends" className="space-y-6">
+                {/* Header */}
+                <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <DollarSign className="h-5 w-5" />
@@ -202,7 +274,7 @@ export const DividendPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
                   <div className="p-4 bg-muted rounded-lg">
                     <div className="text-2xl font-bold text-primary">{dividends.length}</div>
                     <div className="text-sm text-muted-foreground">Total Holdings</div>
@@ -210,6 +282,10 @@ export const DividendPage = () => {
                   <div className="p-4 bg-success/10 rounded-lg">
                     <div className="text-2xl font-bold text-success">{readyCount}</div>
                     <div className="text-sm text-muted-foreground">Ready to Generate</div>
+                  </div>
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{filedCount}</div>
+                    <div className="text-sm text-muted-foreground">Already Filed</div>
                   </div>
                   <div className="p-4 bg-accent/10 rounded-lg">
                     <div className="text-2xl font-bold text-accent">₹{totalDividend.toLocaleString()}</div>
@@ -378,7 +454,37 @@ export const DividendPage = () => {
                 </Button>
               </div>
             )}
-          </div>
+          </TabsContent>
+
+          <TabsContent value="forms" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Generated Forms
+                </CardTitle>
+                <CardDescription>
+                  View, download, and refile your previously generated forms.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <GeneratedFormsManager
+                  forms={generatedForms}
+                  onPreview={handlePreviewForm}
+                  onDelete={handleDeleteForm}
+                  onRefile={handleRefileForm}
+                  templateFile={templateFile}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <FormPreviewDialog
+          open={showPreview}
+          onOpenChange={setShowPreview}
+          form={previewForm}
+        />
         </div>
       </div>
     </div>

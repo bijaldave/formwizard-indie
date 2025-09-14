@@ -1,4 +1,4 @@
-import type { Profile, DividendRow, HoldingRow, AuthData, UIState } from '@/types';
+import type { Profile, DividendRow, HoldingRow, AuthData, UIState, GeneratedForm } from '@/types';
 
 const STORAGE_KEYS = {
   AUTH: 'auth.json',
@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   HOLDINGS: 'holdings.json',
   DIVIDENDS: 'dividends.json',
   UI: 'ui.json',
+  GENERATED_FORMS: 'generated_forms.json',
 } as const;
 
 export class LocalStorage {
@@ -78,4 +79,23 @@ export const getUIState = (): UIState =>
 export const setUIState = (state: Partial<UIState>): void => {
   const current = getUIState();
   LocalStorage.set(STORAGE_KEYS.UI, { ...current, ...state });
+};
+
+// Generated forms functions
+export const getGeneratedForms = (): GeneratedForm[] => 
+  LocalStorage.get(STORAGE_KEYS.GENERATED_FORMS, []);
+
+export const setGeneratedForms = (forms: GeneratedForm[]): void => 
+  LocalStorage.set(STORAGE_KEYS.GENERATED_FORMS, forms);
+
+export const addGeneratedForm = (form: GeneratedForm): void => {
+  const forms = getGeneratedForms();
+  forms.unshift(form); // Add to beginning for recent-first order
+  setGeneratedForms(forms);
+};
+
+export const removeGeneratedForm = (formId: string): void => {
+  const forms = getGeneratedForms();
+  const filtered = forms.filter(f => f.id !== formId);
+  setGeneratedForms(filtered);
 };

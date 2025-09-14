@@ -46,6 +46,17 @@ export type AuthData = {
   lastAttempt: number;
 };
 
+export type GeneratedForm = {
+  id: string;
+  type: 'Form15G';
+  generatedAt: string;
+  filename: string;
+  dividends: DividendRow[];
+  profileSnapshot: Profile;
+  totalAmount: number;
+  pdfBlob?: Blob; // For preview
+};
+
 export type UIState = {
   currentPage: string;
   debugMode: boolean;
