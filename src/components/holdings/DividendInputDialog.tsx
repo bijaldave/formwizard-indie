@@ -10,6 +10,7 @@ interface DividendInputDialogProps {
   onConfirm: (dps: number) => void;
   symbol: string;
   quantity: number;
+  loading?: boolean;
 }
 
 export function DividendInputDialog({ 
@@ -17,7 +18,8 @@ export function DividendInputDialog({
   onClose, 
   onConfirm, 
   symbol, 
-  quantity 
+  quantity,
+  loading = false
 }: DividendInputDialogProps) {
   const [dps, setDps] = useState('');
 
@@ -38,7 +40,7 @@ export function DividendInputDialog({
   const totalDividend = parseFloat(dps) * quantity || 0;
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Enter Dividend Details</DialogTitle>
@@ -69,7 +71,8 @@ export function DividendInputDialog({
               placeholder="0.00"
               value={dps}
               onChange={(e) => setDps(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleConfirm()}
+              onKeyDown={(e) => e.key === 'Enter' && !loading && handleConfirm()}
+              disabled={loading}
             />
           </div>
           
@@ -82,14 +85,14 @@ export function DividendInputDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} disabled={loading}>
             Cancel
           </Button>
           <Button 
             onClick={handleConfirm}
-            disabled={!dps || parseFloat(dps) <= 0}
+            disabled={!dps || parseFloat(dps) <= 0 || loading}
           >
-            Generate PDF
+            {loading ? 'Generating...' : 'Generate PDF'}
           </Button>
         </DialogFooter>
       </DialogContent>

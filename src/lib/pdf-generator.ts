@@ -68,7 +68,13 @@ export const generatePDF = async (
   
   // Load the template PDF
   const templatePath = `/forms/${formType === '15G' ? '15G_UPDATED' : 'Form_15H'}.pdf`;
-  const templateBytes = await fetch(templatePath).then(res => res.arrayBuffer());
+  console.log('Loading template from:', templatePath);
+  
+  const response = await fetch(templatePath);
+  if (!response.ok) {
+    throw new Error(`Failed to load PDF template from ${templatePath}. Status: ${response.status}`);
+  }
+  const templateBytes = await response.arrayBuffer();
   
   const pdfDoc = await PDFDocument.load(templateBytes);
   const pages = pdfDoc.getPages();
@@ -153,11 +159,11 @@ export const generatePDF = async (
   if (profile.assessed_to_tax === 'Yes') {
     drawText('latestAY', profile.latest_ay);
   }
-  drawText('pyLabel', profile.fy_label);
-  drawText('incomeFor', profile.income_for_decl.toString());
-  drawText('incomeTotal', profile.income_total_fy.toString());
-  drawText('otherCnt', profile.other_forms_count.toString());
-  drawText('otherAmt', profile.other_forms_amount.toString());
+  drawText('pyLabel', profile.fy_label || '');
+  drawText('incomeFor', String(profile.income_for_decl ?? ''));
+  drawText('incomeTotal', String(profile.income_total_fy ?? ''));
+  drawText('otherCnt', String(profile.other_forms_count ?? ''));
+  drawText('otherAmt', String(profile.other_forms_amount ?? ''));
   
   // BO ID
   drawText('boid', profile.boid);
@@ -166,7 +172,7 @@ export const generatePDF = async (
   drawText('incomeTbl_ident', profile.boid);
   drawText('incomeTbl_nature', 'Dividend on equity shares');
   drawText('incomeTbl_section', '194');
-  drawText('incomeTbl_amount', dividend.total.toString());
+  drawText('incomeTbl_amount', String(dividend.total ?? ''));
   
   // Signature
   if (profile.signature && fields.signature) {

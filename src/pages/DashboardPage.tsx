@@ -21,6 +21,7 @@ export const DashboardPage = () => {
     open: boolean;
     holding?: HoldingRow;
   }>({ open: false });
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     const savedHoldings = getHoldings();
@@ -62,6 +63,7 @@ export const DashboardPage = () => {
   const handleDividendConfirm = async (dps: number) => {
     if (!profile || !dialogState.holding) return;
 
+    setIsGenerating(true);
     const holding = dialogState.holding;
     const total = dps * holding.qty;
     const dividendData: DividendRow = {
@@ -99,14 +101,16 @@ export const DashboardPage = () => {
       
     } catch (error) {
       console.error('PDF generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast({
         variant: 'destructive',
         title: 'Failed to generate form',
-        description: 'Please check your data and try again. Make sure the form template is available.'
+        description: errorMessage
       });
+    } finally {
+      setIsGenerating(false);
+      setDialogState({ open: false });
     }
-
-    setDialogState({ open: false });
   };
 
   const getStatusIcon = (status: DividendRow['status']) => {
@@ -313,6 +317,7 @@ export const DashboardPage = () => {
         onConfirm={handleDividendConfirm}
         symbol={dialogState.holding?.symbol || ''}
         quantity={dialogState.holding?.qty || 0}
+        loading={isGenerating}
       />
     </div>
   );
