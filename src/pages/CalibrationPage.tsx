@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft, Save, Download, Move, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { loadEmbeddedTemplate } from '@/lib/templateLoader';
-import { saveCalibrationData, loadCalibrationData, buildAcroFormShell } from '@/lib/pdf/calibration';
+import { saveCalibrationData, loadCalibrationData, buildAcroFormShell, CalibrationData } from '@/lib/pdf/calibration';
 import pdfjsLib from '@/lib/pdf/pdfjsSetup';
 
 // Field definitions for each form type

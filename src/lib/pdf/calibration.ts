@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import CryptoJS from 'crypto-js';
 
 export interface PercentRect {
@@ -66,6 +66,7 @@ export async function buildAcroFormShell(
     const { width: pageWidth, height: pageHeight } = page.getSize();
 
     const form = pdfDoc.getForm();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
     Object.entries(calibrationData).forEach(([key, r]) => {
       const width = r.wPct * pageWidth;
@@ -83,7 +84,7 @@ export async function buildAcroFormShell(
         const tf = form.createTextField(key);
         tf.addToPage(page, { x, y, width, height });
         tf.setFontSize(10);
-        tf.defaultUpdateAppearances();
+        tf.defaultUpdateAppearances(font);
       }
     });
 
