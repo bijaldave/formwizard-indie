@@ -85,6 +85,11 @@ export const generatePDF = async (
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontSize = 10;
   
+  // Helper function to sanitize text for WinAnsi encoding
+  const sanitizeText = (text: string): string => {
+    return text.replace(/[^\x00-\xFF]/g, '?').replace(/✓/g, 'X');
+  };
+
   // Helper function to draw text in field
   const drawText = (fieldName: string, text: string) => {
     const field = fields[fieldName];
@@ -94,7 +99,7 @@ export const generatePDF = async (
     const y = height * (1 - field.yPct - field.hPct);
     const maxWidth = width * field.wPct;
     
-    firstPage.drawText(text, {
+    firstPage.drawText(sanitizeText(text), {
       x,
       y,
       size: fontSize,
@@ -113,7 +118,7 @@ export const generatePDF = async (
     const y = height * (1 - field.yPct - field.hPct);
     const size = width * field.wPct;
     
-    firstPage.drawText('✓', {
+    firstPage.drawText('X', {
       x: x + size/4,
       y: y + size/4,
       size: fontSize,

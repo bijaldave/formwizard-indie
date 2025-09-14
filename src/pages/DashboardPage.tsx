@@ -9,7 +9,7 @@ import { getHoldings, getDividends, setDividends, getProfile } from '@/lib/stora
 import { DividendRow, Profile, HoldingRow } from '@/types';
 import { getAgeFromDOB, isProfileComplete } from '@/lib/validation';
 import { generatePDF, downloadPDF } from '@/lib/pdf-generator';
-import { DividendInputDialog } from '@/components/holdings/DividendInputDialog';
+
 import { ArrowLeft, FileText, Download, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
 export const DashboardPage = () => {
@@ -17,10 +17,6 @@ export const DashboardPage = () => {
   const { toast } = useToast();
   const [dividends, setDividendsState] = useState<DividendRow[]>([]);
   const [profile, setProfileState] = useState<Partial<Profile>>({});
-  const [dialogState, setDialogState] = useState<{
-    open: boolean;
-    holding?: HoldingRow;
-  }>({ open: false });
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
@@ -44,7 +40,7 @@ export const DashboardPage = () => {
     setProfileState(savedProfile);
   }, []);
 
-  const handleGenerateForm = (dividend: DividendRow) => {
+  const handleDownloadPDF = async (dividend: DividendRow) => {
     if (!isProfileComplete(profile)) {
       toast({
         variant: 'destructive',
@@ -55,22 +51,14 @@ export const DashboardPage = () => {
       return;
     }
 
-    // Open dividend input dialog
-    const holding = { symbol: dividend.symbol, qty: dividend.qty };
-    setDialogState({ open: true, holding });
-  };
-
-  const handleDividendConfirm = async (dps: number) => {
-    if (!profile || !dialogState.holding) return;
-
     setIsGenerating(true);
-    const holding = dialogState.holding;
-    const total = dps * holding.qty;
+
+    // Create dividend data with default values
     const dividendData: DividendRow = {
-      symbol: holding.symbol,
-      qty: holding.qty,
-      dps,
-      total,
+      symbol: dividend.symbol,
+      qty: dividend.qty,
+      dps: 0,
+      total: 0,
       status: 'filed'
     };
 
@@ -79,7 +67,7 @@ export const DashboardPage = () => {
       const age = getAgeFromDOB(profile.dob_ddmmyyyy || '');
       const formType = age < 60 ? '15G' : '15H';
 
-      const fileName = `Form${formType}_PartA_${profile.fy_label}_${profile.name?.replace(/\s+/g, '_')}_${holding.symbol}.pdf`;
+      const fileName = `Form${formType}_PartA_${profile.fy_label}_${profile.name?.replace(/\s+/g, '_')}_${dividend.symbol}.pdf`;
       
       // Generate PDF
       const pdfBytes = await generatePDF(profile as Profile, dividendData);
@@ -87,16 +75,16 @@ export const DashboardPage = () => {
       // Download PDF
       downloadPDF(pdfBytes, fileName);
       
-      // Update dividend status to filed and save dividend data
+      // Update dividend status to filed
       const updatedDividends = dividends.map(d => 
-        d.symbol === holding.symbol ? dividendData : d
+        d.symbol === dividend.symbol ? dividendData : d
       );
       setDividendsState(updatedDividends);
       setDividends(updatedDividends);
 
       toast({
-        title: `Form ${formType} generated successfully!`,
-        description: `Generated for ${holding.symbol} - ₹${total.toLocaleString()} dividend`,
+        title: `Form ${formType} downloaded successfully!`,
+        description: `Downloaded for ${dividend.symbol} - fill in dividend details manually`,
       });
       
     } catch (error) {
@@ -109,7 +97,6 @@ export const DashboardPage = () => {
       });
     } finally {
       setIsGenerating(false);
-      setDialogState({ open: false });
     }
   };
 
@@ -218,7 +205,7 @@ export const DashboardPage = () => {
               <CardHeader>
                 <CardTitle>Your Holdings</CardTitle>
                 <CardDescription>
-                  Click "Generate Form" to create Form {formType} for each stock
+                  Click "Download PDF" to create Form {formType} for each stock
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -256,11 +243,11 @@ export const DashboardPage = () => {
                             ) : (
                               <Button
                                 size="sm"
-                                onClick={() => handleGenerateForm(dividend)}
-                                disabled={!isProfileComplete(profile)}
+                                onClick={() => handleDownloadPDF(dividend)}
+                                disabled={!isProfileComplete(profile) || isGenerating}
                               >
                                 <Download className="h-4 w-4 mr-2" />
-                                Generate PDF
+                                {isGenerating ? 'Downloading...' : 'Download PDF'}
                               </Button>
                             )}
                           </TableCell>
@@ -311,14 +298,6 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      <DividendInputDialog
-        open={dialogState.open}
-        onClose={() => setDialogState({ open: false })}
-        onConfirm={handleDividendConfirm}
-        symbol={dialogState.holding?.symbol || ''}
-        quantity={dialogState.holding?.qty || 0}
-        loading={isGenerating}
-      />
     </div>
   );
 };
