@@ -134,83 +134,89 @@ async function extractFieldCoordinates(page: PDFPage, formType: string, pageHeig
 function getFieldPatterns(formType: string) {
   if (formType === '15G') {
     return [
-      // Personal Information
-      { name: 'name', label: 'Name', x: 135, y: 95, width: 180, type: 'text' },
-      { name: 'pan', label: 'PAN', x: 325, y: 95, width: 100, type: 'text' },
-      { name: 'status_individual', label: 'Individual', x: 37, y: 113, width: 10, type: 'checkbox' },
-      { name: 'status_huf', label: 'HUF', x: 90, y: 113, width: 10, type: 'checkbox' },
+      // Personal Information - corrected coordinates based on actual form
+      { name: 'name', label: 'Name', x: 120, y: 95, width: 200, type: 'text' },
+      { name: 'pan', label: 'PAN', x: 350, y: 95, width: 120, type: 'text' },
       
-      // Previous Year & Residential Status
-      { name: 'previous_year', label: 'Previous Year', x: 233, y: 113, width: 50, type: 'text' },
-      { name: 'resident_indian', label: 'Indian Resident', x: 340, y: 113, width: 10, type: 'checkbox' },
-      { name: 'resident_nri', label: 'NRI', x: 420, y: 113, width: 10, type: 'checkbox' },
+      // Status checkboxes - Individual/HUF
+      { name: 'status_individual', label: 'Individual', x: 55, y: 115, width: 12, type: 'checkbox' },
+      { name: 'status_huf', label: 'HUF', x: 125, y: 115, width: 12, type: 'checkbox' },
       
-      // Address Fields
-      { name: 'addr_flat', label: 'Flat/Door No', x: 135, y: 135, width: 120, type: 'text' },
-      { name: 'addr_premises', label: 'Name of Premises', x: 260, y: 135, width: 140, type: 'text' },
-      { name: 'addr_street', label: 'Road/Street/Lane', x: 135, y: 155, width: 120, type: 'text' },
-      { name: 'addr_area', label: 'Area/Locality', x: 260, y: 155, width: 140, type: 'text' },
-      { name: 'addr_city', label: 'Town/City/District', x: 135, y: 175, width: 120, type: 'text' },
-      { name: 'addr_state', label: 'State', x: 260, y: 175, width: 100, type: 'text' },
-      { name: 'addr_pin', label: 'PIN Code', x: 365, y: 175, width: 70, type: 'text' },
+      // Previous Year (Assessment Year)
+      { name: 'previous_year', label: 'Previous Year', x: 280, y: 115, width: 60, type: 'text' },
+      
+      // Residential Status checkboxes - corrected field names to match PDF generator
+      { name: 'residential_status_indian', label: 'Indian Resident', x: 380, y: 115, width: 12, type: 'checkbox' },
+      { name: 'residential_status_nri', label: 'NRI', x: 450, y: 115, width: 12, type: 'checkbox' },
+      
+      // Address Fields - repositioned for better alignment
+      { name: 'addr_flat', label: 'Flat/Door No', x: 120, y: 140, width: 140, type: 'text' },
+      { name: 'addr_premises', label: 'Name of Premises', x: 280, y: 140, width: 160, type: 'text' },
+      { name: 'addr_street', label: 'Road/Street/Lane', x: 120, y: 165, width: 140, type: 'text' },
+      { name: 'addr_area', label: 'Area/Locality', x: 280, y: 165, width: 160, type: 'text' },
+      { name: 'addr_city', label: 'Town/City/District', x: 120, y: 190, width: 140, type: 'text' },
+      { name: 'addr_state', label: 'State', x: 280, y: 190, width: 100, type: 'text' },
+      { name: 'addr_pin', label: 'PIN Code', x: 400, y: 190, width: 80, type: 'text' },
       
       // Contact Information
-      { name: 'email', label: 'Email', x: 135, y: 195, width: 150, type: 'text' },
-      { name: 'phone', label: 'Mobile No', x: 300, y: 195, width: 100, type: 'text' },
+      { name: 'email', label: 'Email', x: 120, y: 215, width: 180, type: 'text' },
+      { name: 'phone', label: 'Mobile No', x: 320, y: 215, width: 120, type: 'text' },
       
-      // Tax Assessment
-      { name: 'assessed_yes', label: 'Assessed Yes', x: 350, y: 230, width: 10, type: 'checkbox' },
-      { name: 'assessed_no', label: 'Assessed No', x: 380, y: 230, width: 10, type: 'checkbox' },
-      { name: 'latest_ay', label: 'Latest AY', x: 135, y: 250, width: 80, type: 'text' },
+      // Tax Assessment - corrected positioning
+      { name: 'assessed_yes', label: 'Assessed Yes', x: 380, y: 255, width: 12, type: 'checkbox' },
+      { name: 'assessed_no', label: 'Assessed No', x: 420, y: 255, width: 12, type: 'checkbox' },
+      { name: 'latest_ay', label: 'Latest AY', x: 120, y: 280, width: 100, type: 'text' },
       
-      // Income Information
-      { name: 'income_for_decl', label: 'Income for Declaration', x: 135, y: 285, width: 100, type: 'text' },
-      { name: 'income_total_fy', label: 'Total Income FY', x: 300, y: 285, width: 100, type: 'text' },
-      { name: 'other_forms_count', label: 'Other Forms Count', x: 135, y: 305, width: 80, type: 'text' },
-      { name: 'other_forms_amount', label: 'Other Forms Amount', x: 300, y: 305, width: 100, type: 'text' },
+      // Income Information - better spacing
+      { name: 'income_for_decl', label: 'Income for Declaration', x: 120, y: 320, width: 120, type: 'text' },
+      { name: 'income_total_fy', label: 'Total Income FY', x: 320, y: 320, width: 120, type: 'text' },
+      { name: 'other_forms_count', label: 'Other Forms Count', x: 120, y: 345, width: 100, type: 'text' },
+      { name: 'other_forms_amount', label: 'Other Forms Amount', x: 320, y: 345, width: 120, type: 'text' },
       
-      // Investment Table (5 columns)
-      { name: 'incomeTbl_slno', label: 'Sl No', x: 40, y: 350, width: 30, type: 'table' },
-      { name: 'incomeTbl_id', label: 'Investment ID', x: 75, y: 350, width: 120, type: 'table' },
-      { name: 'incomeTbl_nature', label: 'Nature of Income', x: 200, y: 350, width: 100, type: 'table' },
-      { name: 'incomeTbl_section', label: 'Tax Section', x: 305, y: 350, width: 60, type: 'table' },
-      { name: 'incomeTbl_amount', label: 'Amount', x: 370, y: 350, width: 80, type: 'table' },
+      // Investment Table - corrected table structure with proper column alignment
+      { name: 'incomeTbl_slno', label: 'Sl No', x: 50, y: 400, width: 25, type: 'table' },
+      { name: 'incomeTbl_boid', label: 'BOID/Investment ID', x: 80, y: 400, width: 110, type: 'table' },
+      { name: 'incomeTbl_nature', label: 'Nature of Income', x: 195, y: 400, width: 120, type: 'table' },
+      { name: 'incomeTbl_section', label: 'Tax Section', x: 320, y: 400, width: 70, type: 'table' },
+      { name: 'incomeTbl_amount', label: 'Amount', x: 395, y: 400, width: 85, type: 'table' },
       
-      // Signature
-      { name: 'signature', label: 'Signature', x: 350, y: 450, width: 100, height: 40, type: 'text' }
+      // Signature area
+      { name: 'signature', label: 'Signature', x: 350, y: 500, width: 120, height: 50, type: 'text' }
     ];
   } else {
-    // Form 15H patterns (similar structure but different coordinates)
+    // Form 15H patterns (similar structure to 15G with age-specific adjustments)
     return [
-      { name: 'name', label: 'Name', x: 135, y: 95, width: 180, type: 'text' },
-      { name: 'pan', label: 'PAN', x: 325, y: 95, width: 100, type: 'text' },
-      { name: 'dob', label: 'Date of Birth', x: 135, y: 115, width: 100, type: 'text' },
-      { name: 'status_individual', label: 'Individual', x: 37, y: 135, width: 10, type: 'checkbox' },
-      { name: 'status_huf', label: 'HUF', x: 90, y: 135, width: 10, type: 'checkbox' },
+      { name: 'name', label: 'Name', x: 120, y: 95, width: 200, type: 'text' },
+      { name: 'pan', label: 'PAN', x: 350, y: 95, width: 120, type: 'text' },
+      { name: 'dob', label: 'Date of Birth', x: 120, y: 115, width: 120, type: 'text' },
       
-      // Address and other fields for 15H
-      { name: 'addr_flat', label: 'Flat/Door No', x: 135, y: 155, width: 120, type: 'text' },
-      { name: 'addr_premises', label: 'Name of Premises', x: 260, y: 155, width: 140, type: 'text' },
-      { name: 'addr_street', label: 'Road/Street/Lane', x: 135, y: 175, width: 120, type: 'text' },
-      { name: 'addr_area', label: 'Area/Locality', x: 260, y: 175, width: 140, type: 'text' },
-      { name: 'addr_city', label: 'Town/City/District', x: 135, y: 195, width: 120, type: 'text' },
-      { name: 'addr_state', label: 'State', x: 260, y: 195, width: 100, type: 'text' },
-      { name: 'addr_pin', label: 'PIN Code', x: 365, y: 195, width: 70, type: 'text' },
+      { name: 'status_individual', label: 'Individual', x: 55, y: 135, width: 12, type: 'checkbox' },
+      { name: 'status_huf', label: 'HUF', x: 125, y: 135, width: 12, type: 'checkbox' },
       
-      { name: 'email', label: 'Email', x: 135, y: 215, width: 150, type: 'text' },
-      { name: 'phone', label: 'Mobile No', x: 300, y: 215, width: 100, type: 'text' },
+      // Address fields for 15H
+      { name: 'addr_flat', label: 'Flat/Door No', x: 120, y: 160, width: 140, type: 'text' },
+      { name: 'addr_premises', label: 'Name of Premises', x: 280, y: 160, width: 160, type: 'text' },
+      { name: 'addr_street', label: 'Road/Street/Lane', x: 120, y: 185, width: 140, type: 'text' },
+      { name: 'addr_area', label: 'Area/Locality', x: 280, y: 185, width: 160, type: 'text' },
+      { name: 'addr_city', label: 'Town/City/District', x: 120, y: 210, width: 140, type: 'text' },
+      { name: 'addr_state', label: 'State', x: 280, y: 210, width: 100, type: 'text' },
+      { name: 'addr_pin', label: 'PIN Code', x: 400, y: 210, width: 80, type: 'text' },
       
-      // Income and investment table similar to 15G but adjusted positions
-      { name: 'income_for_decl', label: 'Income for Declaration', x: 135, y: 285, width: 100, type: 'text' },
-      { name: 'income_total_fy', label: 'Total Income FY', x: 300, y: 285, width: 100, type: 'text' },
+      { name: 'email', label: 'Email', x: 120, y: 235, width: 180, type: 'text' },
+      { name: 'phone', label: 'Mobile No', x: 320, y: 235, width: 120, type: 'text' },
       
-      { name: 'incomeTbl_slno', label: 'Sl No', x: 40, y: 350, width: 30, type: 'table' },
-      { name: 'incomeTbl_id', label: 'Investment ID', x: 75, y: 350, width: 120, type: 'table' },
-      { name: 'incomeTbl_nature', label: 'Nature of Income', x: 200, y: 350, width: 100, type: 'table' },
-      { name: 'incomeTbl_section', label: 'Tax Section', x: 305, y: 350, width: 60, type: 'table' },
-      { name: 'incomeTbl_amount', label: 'Amount', x: 370, y: 350, width: 80, type: 'table' },
+      // Income information for 15H
+      { name: 'income_for_decl', label: 'Income for Declaration', x: 120, y: 320, width: 120, type: 'text' },
+      { name: 'income_total_fy', label: 'Total Income FY', x: 320, y: 320, width: 120, type: 'text' },
       
-      { name: 'signature', label: 'Signature', x: 350, y: 450, width: 100, height: 40, type: 'text' }
+      // Investment table for 15H
+      { name: 'incomeTbl_slno', label: 'Sl No', x: 50, y: 400, width: 25, type: 'table' },
+      { name: 'incomeTbl_boid', label: 'Investment ID', x: 80, y: 400, width: 110, type: 'table' },
+      { name: 'incomeTbl_nature', label: 'Nature of Income', x: 195, y: 400, width: 120, type: 'table' },
+      { name: 'incomeTbl_section', label: 'Tax Section', x: 320, y: 400, width: 70, type: 'table' },
+      { name: 'incomeTbl_amount', label: 'Amount', x: 395, y: 400, width: 85, type: 'table' },
+      
+      { name: 'signature', label: 'Signature', x: 350, y: 500, width: 120, height: 50, type: 'text' }
     ];
   }
 }
@@ -256,59 +262,76 @@ function generateFieldMappings(fields: ExtractedField[], formType: string): Reco
 }
 
 function getOptimizedCoordinates(formType: string) {
-  // Fallback optimized coordinates when PDF reading fails
+  // Fallback optimized coordinates with corrected field mappings
   const optimized15G = {
-    // Personal Info - optimized font sizes
-    name: { x: 135, y: 727, width: 180, height: 16, fontSize: 9, maxWidth: 178 },
-    pan: { x: 325, y: 727, width: 100, height: 16, fontSize: 9, maxWidth: 98 },
-    status_individual: { x: 37, y: 709, width: 10, height: 10, fontSize: 10 },
-    status_huf: { x: 90, y: 709, width: 10, height: 10, fontSize: 10 },
+    // Personal Info - corrected coordinates and optimized font sizes
+    name: { x: 120, y: 727, width: 200, height: 18, fontSize: 10, maxWidth: 198 },
+    pan: { x: 350, y: 727, width: 120, height: 18, fontSize: 10, maxWidth: 118 },
     
-    // Previous Year (small field - reduced font)
-    previous_year: { x: 233, y: 709, width: 50, height: 16, fontSize: 7, maxWidth: 48 },
-    resident_indian: { x: 340, y: 709, width: 10, height: 10, fontSize: 10 },
-    resident_nri: { x: 420, y: 709, width: 10, height: 10, fontSize: 10 },
+    // Status checkboxes - corrected positioning
+    status_individual: { x: 55, y: 707, width: 12, height: 12, fontSize: 10 },
+    status_huf: { x: 125, y: 707, width: 12, height: 12, fontSize: 10 },
     
-    // Address - consistent sizing
-    addr_flat: { x: 135, y: 687, width: 120, height: 16, fontSize: 8, maxWidth: 118 },
-    addr_premises: { x: 260, y: 687, width: 140, height: 16, fontSize: 8, maxWidth: 138 },
-    addr_street: { x: 135, y: 667, width: 120, height: 16, fontSize: 8, maxWidth: 118 },
-    addr_area: { x: 260, y: 667, width: 140, height: 16, fontSize: 8, maxWidth: 138 },
-    addr_city: { x: 135, y: 647, width: 120, height: 16, fontSize: 8, maxWidth: 118 },
-    addr_state: { x: 260, y: 647, width: 100, height: 16, fontSize: 8, maxWidth: 98 },
-    addr_pin: { x: 365, y: 647, width: 70, height: 16, fontSize: 8, maxWidth: 68 },
+    // Previous Year
+    previous_year: { x: 280, y: 707, width: 60, height: 16, fontSize: 8, maxWidth: 58 },
+    
+    // Residential Status - corrected field names to match actual usage
+    residential_status_indian: { x: 380, y: 707, width: 12, height: 12, fontSize: 10 },
+    residential_status_nri: { x: 450, y: 707, width: 12, height: 12, fontSize: 10 },
+    
+    // Address - improved positioning and sizing
+    addr_flat: { x: 120, y: 682, width: 140, height: 16, fontSize: 9, maxWidth: 138 },
+    addr_premises: { x: 280, y: 682, width: 160, height: 16, fontSize: 9, maxWidth: 158 },
+    addr_street: { x: 120, y: 657, width: 140, height: 16, fontSize: 9, maxWidth: 138 },
+    addr_area: { x: 280, y: 657, width: 160, height: 16, fontSize: 9, maxWidth: 158 },
+    addr_city: { x: 120, y: 632, width: 140, height: 16, fontSize: 9, maxWidth: 138 },
+    addr_state: { x: 280, y: 632, width: 100, height: 16, fontSize: 9, maxWidth: 98 },
+    addr_pin: { x: 400, y: 632, width: 80, height: 16, fontSize: 9, maxWidth: 78 },
     
     // Contact
-    email: { x: 135, y: 627, width: 150, height: 16, fontSize: 8, maxWidth: 148 },
-    phone: { x: 300, y: 627, width: 100, height: 16, fontSize: 8, maxWidth: 98 },
+    email: { x: 120, y: 607, width: 180, height: 16, fontSize: 9, maxWidth: 178 },
+    phone: { x: 320, y: 607, width: 120, height: 16, fontSize: 9, maxWidth: 118 },
     
-    // Tax Assessment
-    assessed_yes: { x: 350, y: 592, width: 10, height: 10, fontSize: 10 },
-    assessed_no: { x: 380, y: 592, width: 10, height: 10, fontSize: 10 },
-    latest_ay: { x: 135, y: 572, width: 80, height: 16, fontSize: 8, maxWidth: 78 },
+    // Tax Assessment - corrected positioning
+    assessed_yes: { x: 380, y: 567, width: 12, height: 12, fontSize: 10 },
+    assessed_no: { x: 420, y: 567, width: 12, height: 12, fontSize: 10 },
+    latest_ay: { x: 120, y: 542, width: 100, height: 16, fontSize: 9, maxWidth: 98 },
     
-    // Income
-    income_for_decl: { x: 135, y: 537, width: 100, height: 16, fontSize: 8, maxWidth: 98 },
-    income_total_fy: { x: 300, y: 537, width: 100, height: 16, fontSize: 8, maxWidth: 98 },
-    other_forms_count: { x: 135, y: 517, width: 80, height: 16, fontSize: 8, maxWidth: 78 },
-    other_forms_amount: { x: 300, y: 517, width: 100, height: 16, fontSize: 8, maxWidth: 98 },
+    // Income Information - better spacing
+    income_for_decl: { x: 120, y: 502, width: 120, height: 16, fontSize: 9, maxWidth: 118 },
+    income_total_fy: { x: 320, y: 502, width: 120, height: 16, fontSize: 9, maxWidth: 118 },
+    other_forms_count: { x: 120, y: 477, width: 100, height: 16, fontSize: 9, maxWidth: 98 },
+    other_forms_amount: { x: 320, y: 477, width: 120, height: 16, fontSize: 9, maxWidth: 118 },
     
-    // Investment Table - corrected coordinates and smaller font
-    incomeTbl_slno: { x: 40, y: 472, width: 30, height: 16, fontSize: 7, maxWidth: 28 },
-    incomeTbl_id: { x: 75, y: 472, width: 120, height: 16, fontSize: 7, maxWidth: 118 },
-    incomeTbl_nature: { x: 200, y: 472, width: 100, height: 16, fontSize: 7, maxWidth: 98 },
-    incomeTbl_section: { x: 305, y: 472, width: 60, height: 16, fontSize: 7, maxWidth: 58 },
-    incomeTbl_amount: { x: 370, y: 472, width: 80, height: 16, fontSize: 7, maxWidth: 78, align: 'right' },
+    // Investment Table - corrected structure with BOID column
+    incomeTbl_slno: { x: 50, y: 422, width: 25, height: 16, fontSize: 8, maxWidth: 23 },
+    incomeTbl_boid: { x: 80, y: 422, width: 110, height: 16, fontSize: 8, maxWidth: 108 },
+    incomeTbl_nature: { x: 195, y: 422, width: 120, height: 16, fontSize: 8, maxWidth: 118 },
+    incomeTbl_section: { x: 320, y: 422, width: 70, height: 16, fontSize: 8, maxWidth: 68 },
+    incomeTbl_amount: { x: 395, y: 422, width: 85, height: 16, fontSize: 8, maxWidth: 83, align: 'right' },
     
     // Signature
-    signature: { x: 350, y: 372, width: 100, height: 40, fontSize: 10, maxWidth: 98 }
+    signature: { x: 350, y: 322, width: 120, height: 50, fontSize: 10, maxWidth: 118 }
   };
 
   const optimized15H = {
-    // Similar structure to 15G but with Form 15H specific coordinates
+    // Form 15H with similar structure but adjusted for age-specific fields
     ...optimized15G,
-    dob: { x: 135, y: 707, width: 100, height: 16, fontSize: 8, maxWidth: 98 },
-    // Adjust other coordinates as needed for 15H
+    dob: { x: 120, y: 707, width: 120, height: 16, fontSize: 9, maxWidth: 118 },
+    // Remove previous_year and residential status fields specific to 15G
+    previous_year: undefined,
+    residential_status_indian: undefined,
+    residential_status_nri: undefined,
+    // Adjust address coordinates for 15H
+    addr_flat: { x: 120, y: 662, width: 140, height: 16, fontSize: 9, maxWidth: 138 },
+    addr_premises: { x: 280, y: 662, width: 160, height: 16, fontSize: 9, maxWidth: 158 },
+    addr_street: { x: 120, y: 637, width: 140, height: 16, fontSize: 9, maxWidth: 138 },
+    addr_area: { x: 280, y: 637, width: 160, height: 16, fontSize: 9, maxWidth: 158 },
+    addr_city: { x: 120, y: 612, width: 140, height: 16, fontSize: 9, maxWidth: 138 },
+    addr_state: { x: 280, y: 612, width: 100, height: 16, fontSize: 9, maxWidth: 98 },
+    addr_pin: { x: 400, y: 612, width: 80, height: 16, fontSize: 9, maxWidth: 78 },
+    email: { x: 120, y: 587, width: 180, height: 16, fontSize: 9, maxWidth: 178 },
+    phone: { x: 320, y: 587, width: 120, height: 16, fontSize: 9, maxWidth: 118 }
   };
 
   return new Response(
