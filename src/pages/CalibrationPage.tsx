@@ -50,15 +50,15 @@ const FORM_FIELDS = {
   ]
 };
 
-interface Rectangle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+interface PercentRectLocal {
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
 }
 
-interface CalibrationData {
-  [key: string]: Rectangle;
+interface CalibrationDataLocal {
+  [key: string]: PercentRectLocal;
 }
 
 export const CalibrationPage = () => {
@@ -67,12 +67,10 @@ export const CalibrationPage = () => {
   const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
-  const [calibrationData, setCalibrationData] = useState<CalibrationData>({});
+  const [calibrationData, setCalibrationData] = useState<CalibrationDataLocal>({});
   const [selectedField, setSelectedField] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
-  const [pageWidth, setPageWidth] = useState(0);
-  const [pageHeight, setPageHeight] = useState(0);
+  const [pdfBaseWidth, setPdfBaseWidth] = useState(0);
+  const [pdfBaseHeight, setPdfBaseHeight] = useState(0);
 
   useEffect(() => {
     if (!formType || !['15G', '15H'].includes(formType)) {
@@ -94,9 +92,9 @@ export const CalibrationPage = () => {
       
       setPdfDoc({ pdf, page });
       
-      const viewport = page.getViewport({ scale: 1 });
-      setPageWidth(viewport.width);
-      setPageHeight(viewport.height);
+      const viewportBase = page.getViewport({ scale: 1 });
+      setPdfBaseWidth(viewportBase.width);
+      setPdfBaseHeight(viewportBase.height);
       
       renderPDF(page);
     } catch (error) {
@@ -114,6 +112,7 @@ export const CalibrationPage = () => {
     if (!canvas) return;
 
     const context = canvas.getContext('2d');
+    const viewportBase = page.getViewport({ scale: 1 });
     const viewport = page.getViewport({ scale: 1.5 });
     
     canvas.width = viewport.width;
@@ -124,15 +123,15 @@ export const CalibrationPage = () => {
     await page.render({ canvasContext: context, viewport }).promise;
     
     // Draw field overlays
-    drawFieldOverlays(context, viewport.scale);
+    drawFieldOverlays(context, 1.5, viewportBase.width, viewportBase.height);
   };
 
-  const drawFieldOverlays = (context: CanvasRenderingContext2D, scale: number) => {
+  const drawFieldOverlays = (context: CanvasRenderingContext2D, scale: number, baseW: number, baseH: number) => {
     Object.entries(calibrationData).forEach(([fieldKey, rect]) => {
-      const x = rect.x * scale;
-      const y = rect.y * scale;
-      const width = rect.width * scale;
-      const height = rect.height * scale;
+      const x = rect.xPct * baseW * scale;
+      const y = rect.yPct * baseH * scale;
+      const width = rect.wPct * baseW * scale;
+      const height = rect.hPct * baseH * scale;
 
       // Draw rectangle
       context.strokeStyle = selectedField === fieldKey ? '#ff0000' : '#00ff00';
@@ -151,7 +150,7 @@ export const CalibrationPage = () => {
   const loadExistingCalibration = async () => {
     try {
       const data = await loadCalibrationData(formType!);
-      setCalibrationData(data);
+      setCalibrationData(data as CalibrationDataLocal);
     } catch (error) {
       console.log('No existing calibration data found');
     }
@@ -162,17 +161,25 @@ export const CalibrationPage = () => {
 
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
-    const x = (e.clientX - rect.left) * scaleX / 1.5; // Accounting for PDF scale
-    const y = (e.clientY - rect.top) * scaleY / 1.5;
+    const scaleX = canvas.width / rect.width; // canvas px per CSS px
+    const scale = 1.5; // render scale
 
-    const newRect: Rectangle = {
-      x: x - 50, // Default width/2
-      y: y - 10, // Default height/2
-      width: 100,
-      height: 20
+    // Position in canvas pixels
+    const canvasX = (e.clientX - rect.left) * scaleX;
+    const canvasY = (e.clientY - rect.top) * scaleX; // assume square pixels
+
+    // Convert to base PDF viewport units (scale 1)
+    const baseX = canvasX / scale;
+    const baseY = canvasY / scale;
+
+    const defaultW = 150; // base units
+    const defaultH = 20;
+
+    const newRect: PercentRectLocal = {
+      xPct: baseX / pdfBaseWidth,
+      yPct: baseY / pdfBaseHeight,
+      wPct: defaultW / pdfBaseWidth,
+      hPct: defaultH / pdfBaseHeight
     };
 
     setCalibrationData(prev => ({
@@ -188,7 +195,7 @@ export const CalibrationPage = () => {
 
   const handleSaveCalibration = async () => {
     try {
-      await saveCalibrationData(formType!, calibrationData);
+      await saveCalibrationData(formType!, calibrationData as CalibrationData, pdfBaseWidth, pdfBaseHeight);
       toast({
         title: 'Calibration Saved',
         description: `Field coordinates for Form ${formType} have been saved successfully.`

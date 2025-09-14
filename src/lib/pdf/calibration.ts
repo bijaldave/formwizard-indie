@@ -1,217 +1,142 @@
-import { PDFDocument, PDFTextField, PDFCheckBox, StandardFonts } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
 import CryptoJS from 'crypto-js';
 
-export interface Rectangle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+export interface PercentRect {
+  xPct: number; // 0..1 from left
+  yPct: number; // 0..1 from top
+  wPct: number; // 0..1 width
+  hPct: number; // 0..1 height
 }
 
 export interface CalibrationData {
-  [fieldKey: string]: Rectangle;
+  [fieldKey: string]: PercentRect;
 }
 
 export interface CalibrationStore {
   templateHash: string;
-  pageWidth: number;
-  pageHeight: string;
+  pageWidth: number; // base width used during calibration render
+  pageHeight: number; // base height used during calibration render
   fields: CalibrationData;
   calibratedAt: string;
 }
 
-/**
- * Calculate PDF hash for template validation
- */
+// Calculate PDF SHA-256 hash
 export async function calculatePdfHash(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
-  const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer);
+  const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer as any);
   return CryptoJS.SHA256(wordArray).toString();
 }
 
-/**
- * Save calibration data to localStorage
- */
-export async function saveCalibrationData(formType: string, data: CalibrationData): Promise<void> {
+// Save percent-based calibration data
+export async function saveCalibrationData(
+  formType: string,
+  data: CalibrationData,
+  baseWidth: number,
+  baseHeight: number
+): Promise<void> {
   const calibrationStore: CalibrationStore = {
-    templateHash: '', // Will be set when building AcroForm
-    pageWidth: 0,
-    pageHeight: '',
+    templateHash: '',
+    pageWidth: baseWidth,
+    pageHeight: baseHeight,
     fields: data,
     calibratedAt: new Date().toISOString()
   };
-  
   localStorage.setItem(`calibration_${formType}`, JSON.stringify(calibrationStore));
 }
 
-/**
- * Load calibration data from localStorage
- */
+// Load calibration fields only
 export async function loadCalibrationData(formType: string): Promise<CalibrationData> {
   const stored = localStorage.getItem(`calibration_${formType}`);
-  if (!stored) {
-    throw new Error('No calibration data found');
-  }
-  
+  if (!stored) throw new Error('No calibration data found');
   const calibrationStore: CalibrationStore = JSON.parse(stored);
   return calibrationStore.fields;
 }
 
-/**
- * Build AcroForm shell with fillable fields
- */
+// Build a fillable AcroForm shell PDF using percent rects
 export async function buildAcroFormShell(
   templateFile: File,
   calibrationData: CalibrationData,
   formType: string
 ): Promise<Uint8Array> {
   try {
-    // Calculate template hash for validation
     const templateHash = await calculatePdfHash(templateFile);
-    
-    // Load the source PDF
-    const arrayBuffer = await templateFile.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(arrayBuffer);
+    const pdfBytes = await templateFile.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(pdfBytes);
     const page = pdfDoc.getPage(0);
     const { width: pageWidth, height: pageHeight } = page.getSize();
-    
-    // Embed font for text fields
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    
-    // Create AcroForm
+
     const form = pdfDoc.getForm();
-    
-    // Add fields based on calibration data
-    Object.entries(calibrationData).forEach(([fieldKey, rect]) => {
-      // Convert coordinates (PDF uses bottom-left origin, calibration uses top-left)
-      const pdfY = pageHeight - rect.y - rect.height;
-      
-      if (fieldKey.includes('_yes') || fieldKey.includes('_no')) {
-        // Create checkbox for yes/no fields
-        const checkbox = form.createCheckBox(fieldKey);
-        checkbox.addToPage(page, {
-          x: rect.x,
-          y: pdfY,
-          width: rect.width,
-          height: rect.height
-        });
-        
-        // Style the checkbox
-        checkbox.defaultUpdateAppearances();
-      } else if (fieldKey === 'signature_box') {
-        // For signature, we'll handle this as a special case during filling
-        // Just store the coordinates for later image placement
-        console.log(`Signature box coordinates stored: ${JSON.stringify(rect)}`);
+
+    Object.entries(calibrationData).forEach(([key, r]) => {
+      const width = r.wPct * pageWidth;
+      const height = r.hPct * pageHeight;
+      const x = r.xPct * pageWidth;
+      const y = pageHeight - r.yPct * pageHeight - height; // top-left -> bottom-left
+
+      if (key.includes('_yes') || key.includes('_no')) {
+        const cb = form.createCheckBox(key);
+        cb.addToPage(page, { x, y, width, height });
+        cb.defaultUpdateAppearances();
+      } else if (key === 'signature_box') {
+        // handled at fill time
       } else {
-        // Create text field
-        const textField = form.createTextField(fieldKey);
-        textField.addToPage(page, {
-          x: rect.x,
-          y: pdfY,
-          width: rect.width,
-          height: rect.height
-        });
-        
-        // Style the text field
-        textField.setFontSize(10);
-        textField.defaultUpdateAppearances(font);
+        const tf = form.createTextField(key);
+        tf.addToPage(page, { x, y, width, height });
+        tf.setFontSize(10);
+        tf.defaultUpdateAppearances();
       }
     });
-    
-    // Save calibration metadata with hash
-    const calibrationStore: CalibrationStore = {
+
+    // Persist hash + fields for validation
+    const store: CalibrationStore = {
       templateHash,
       pageWidth,
-      pageHeight: pageHeight.toString(),
+      pageHeight,
       fields: calibrationData,
       calibratedAt: new Date().toISOString()
     };
-    localStorage.setItem(`calibration_${formType}`, JSON.stringify(calibrationStore));
-    
-    // Save the AcroForm PDF
-    const pdfBytes = await pdfDoc.save();
-    
-    // Store the AcroForm shell in localStorage (base64 encoded)
-    const base64Pdf = btoa(String.fromCharCode(...new Uint8Array(pdfBytes)));
+    localStorage.setItem(`calibration_${formType}`, JSON.stringify(store));
+
+    const out = await pdfDoc.save();
+    const base64Pdf = btoa(String.fromCharCode(...new Uint8Array(out)));
     localStorage.setItem(`acroform_${formType}`, base64Pdf);
-    
-    console.log(`AcroForm shell built for Form ${formType} with ${Object.keys(calibrationData).length} fields`);
-    
-    return pdfBytes;
-    
-  } catch (error) {
-    console.error('Error building AcroForm shell:', error);
-    throw new Error(`Failed to build AcroForm shell: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    return out;
+  } catch (e) {
+    console.error('Error building AcroForm shell:', e);
+    throw new Error(`Failed to build AcroForm shell: ${e instanceof Error ? e.message : 'Unknown error'}`);
   }
 }
 
-/**
- * Load AcroForm shell from localStorage
- */
 export async function loadAcroFormShell(formType: string): Promise<Uint8Array | null> {
-  try {
-    const stored = localStorage.getItem(`acroform_${formType}`);
-    if (!stored) {
-      return null;
-    }
-    
-    // Decode base64 to bytes
-    const binaryString = atob(stored);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    
-    return bytes;
-  } catch (error) {
-    console.error('Error loading AcroForm shell:', error);
-    return null;
-  }
+  const stored = localStorage.getItem(`acroform_${formType}`);
+  if (!stored) return null;
+  const bin = atob(stored);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
 }
 
-/**
- * Validate if AcroForm shell matches current template
- */
 export async function validateAcroFormShell(
   templateFile: File,
   formType: string
 ): Promise<{ valid: boolean; reason?: string }> {
-  try {
-    // Check if calibration data exists
-    const calibrationStore = localStorage.getItem(`calibration_${formType}`);
-    if (!calibrationStore) {
-      return { valid: false, reason: 'No calibration data found' };
-    }
-    
-    const calibration: CalibrationStore = JSON.parse(calibrationStore);
-    
-    // Check if AcroForm shell exists
-    const acroFormExists = localStorage.getItem(`acroform_${formType}`);
-    if (!acroFormExists) {
-      return { valid: false, reason: 'No AcroForm shell found' };
-    }
-    
-    // Validate template hash
-    const currentHash = await calculatePdfHash(templateFile);
-    if (calibration.templateHash !== currentHash) {
-      return { valid: false, reason: 'Template has changed since calibration' };
-    }
-    
-    return { valid: true };
-  } catch (error) {
-    return { valid: false, reason: 'Validation error: ' + (error instanceof Error ? error.message : 'Unknown error') };
+  const cal = localStorage.getItem(`calibration_${formType}`);
+  if (!cal) return { valid: false, reason: 'No calibration data found' };
+  const acro = localStorage.getItem(`acroform_${formType}`);
+  if (!acro) return { valid: false, reason: 'No AcroForm shell found' };
+
+  const store: CalibrationStore = JSON.parse(cal);
+  const currentHash = await calculatePdfHash(templateFile);
+  if (store.templateHash !== currentHash) {
+    return { valid: false, reason: 'Template has changed since calibration' };
   }
+  return { valid: true };
 }
 
-/**
- * Get signature box coordinates for manual placement
- */
-export async function getSignatureCoordinates(formType: string): Promise<Rectangle | null> {
-  try {
-    const calibrationData = await loadCalibrationData(formType);
-    return calibrationData.signature_box || null;
-  } catch (error) {
-    console.error('Error getting signature coordinates:', error);
-    return null;
-  }
+// Return signature rect in percent space
+export async function getSignaturePercentRect(formType: string): Promise<PercentRect | null> {
+  const cal = localStorage.getItem(`calibration_${formType}`);
+  if (!cal) return null;
+  const store: CalibrationStore = JSON.parse(cal);
+  return store.fields.signature_box || null;
 }

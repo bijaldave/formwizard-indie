@@ -229,6 +229,11 @@ export const DashboardPage = () => {
     await handleGenerateForm(dividend);
   };
 
+  const handleRefileFormBySymbol = async (symbol: string) => {
+    const d = dividends.find(x => x.symbol === symbol);
+    if (d) await handleGenerateForm(d);
+  };
+
   const getActionButton = (dividend: DividendRow) => {
     const profileComplete = isProfileComplete(profile);
     
@@ -282,7 +287,7 @@ export const DashboardPage = () => {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => handleGenerateForm(dividend)}
+              onClick={() => handleRefileFormBySymbol(dividend.symbol)}
               disabled={!profileComplete || isGenerating}
               className="flex-1"
               title="Generate new form"

@@ -1,7 +1,7 @@
 import { PDFDocument, PDFPage } from 'pdf-lib';
 import { Form15GData } from './fill15G';
 import { Form15HData } from './fill15H';
-import { loadAcroFormShell, validateAcroFormShell, getSignatureCoordinates } from './calibration';
+import { loadAcroFormShell, validateAcroFormShell, getSignaturePercentRect } from './calibration';
 
 /**
  * Fill Form 15G using AcroForm approach
@@ -186,8 +186,8 @@ async function embedSignatureImage(
   formType: string
 ): Promise<void> {
   try {
-    const signatureCoords = await getSignatureCoordinates(formType);
-    if (!signatureCoords) {
+    const percentRect = await getSignaturePercentRect(formType);
+    if (!percentRect) {
       console.warn('No signature coordinates found, skipping signature');
       return;
     }
@@ -199,20 +199,18 @@ async function embedSignatureImage(
     // Embed image
     const signatureImage = await pdfDoc.embedPng(signatureBytes);
     
-    // Get first page
+    // Get first page size
     const page = pdfDoc.getPage(0);
-    const { height: pageHeight } = page.getSize();
+    const { width: pageWidth, height: pageHeight } = page.getSize();
     
-    // Convert coordinates (calibration uses top-left, PDF uses bottom-left)
-    const pdfY = pageHeight - signatureCoords.y - signatureCoords.height;
+    // Compute absolute coords from percent rect
+    const width = percentRect.wPct * pageWidth;
+    const height = percentRect.hPct * pageHeight;
+    const x = percentRect.xPct * pageWidth;
+    const y = pageHeight - (percentRect.yPct * pageHeight) - height;
     
     // Draw signature image
-    page.drawImage(signatureImage, {
-      x: signatureCoords.x,
-      y: pdfY,
-      width: signatureCoords.width,
-      height: signatureCoords.height
-    });
+    page.drawImage(signatureImage, { x, y, width, height });
     
   } catch (error) {
     console.error('Error embedding signature:', error);
