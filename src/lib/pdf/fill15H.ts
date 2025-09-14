@@ -98,52 +98,6 @@ export function profileToForm15HData(profile: Profile, dividend: DividendRow): F
 /**
  * Fill Form 15H PDF with enhanced coordinate detection
  */
-export async function fillForm15H(
-  templateFile: File,
-  data: Form15HData,
-  debugMode: boolean = false
-): Promise<Uint8Array> {
-  
-  return {
-    name: profile.name,
-    pan: profile.pan,
-    address: addressParts.join(', '),
-    previous_year: previousYear,
-    assessment_year: assessmentYear,
-    residential_status: profile.residential_status === 'NRI' ? 'Non-Resident' : 'Resident',
-    assessed_yes: profile.assessed_to_tax === 'Yes',
-    assessed_no: profile.assessed_to_tax === 'No',
-    latest_ay: profile.assessmentYearPrevious || profile.latest_ay || assessmentYear,
-    estimated_income_current: estimatedIncomeCurrent.toLocaleString('en-IN', { 
-      style: 'currency', 
-      currency: 'INR',
-      minimumFractionDigits: 2 
-    }),
-    estimated_income_total: estimatedIncomeTotal.toLocaleString('en-IN', { 
-      style: 'currency', 
-      currency: 'INR',
-      minimumFractionDigits: 2 
-    }),
-    boid: profile.boid,
-    nature_income: 'Dividend',
-    section: '194',
-    dividend_amount: dividend.total.toLocaleString('en-IN', { 
-      style: 'currency', 
-      currency: 'INR',
-      minimumFractionDigits: 2 
-    }),
-    form_count: formCount.toString(),
-    form_amount: formAmount.toLocaleString('en-IN', { 
-      style: 'currency', 
-      currency: 'INR',
-      minimumFractionDigits: 2 
-    }),
-    signature: profile.signature,
-    place_date: `Mumbai, ${currentDate.toLocaleDateString('en-IN')}`,
-    declaration_fy_end: profile.financialYearEnd || `31-03-${currentYear}`,
-    declaration_ay: assessmentYear
-  };
-}
 
 /**
  * Fill Form 15H PDF with enhanced coordinate detection
