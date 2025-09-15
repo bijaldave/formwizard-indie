@@ -56,6 +56,24 @@ export const DashboardPage = () => {
     setGeneratedFormsState(savedForms);
   }, []);
 
+  // Preflight check for AcroForm template availability
+  useEffect(() => {
+    const checkAcroTemplates = async () => {
+      try {
+        const [form15G, form15H] = await Promise.all([
+          fetch('/templates/15G.acro.pdf', { method: 'HEAD' }),
+          fetch('/templates/15H.acro.pdf', { method: 'HEAD' })
+        ]);
+        setAcroTemplatesAvailable(form15G.ok && form15H.ok);
+      } catch (error) {
+        console.warn('Could not check AcroForm template availability:', error);
+        setAcroTemplatesAvailable(false);
+      }
+    };
+
+    checkAcroTemplates();
+  }, []);
+
   const handleDividendSave = (updatedDividend: DividendRow) => {
     const updatedDividends = dividends.map(d => 
       d.symbol === updatedDividend.symbol ? updatedDividend : d
