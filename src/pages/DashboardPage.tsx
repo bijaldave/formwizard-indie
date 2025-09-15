@@ -56,22 +56,9 @@ export const DashboardPage = () => {
     setGeneratedFormsState(savedForms);
   }, []);
 
-  // Preflight check for AcroForm template availability
+  // Initialize AcroForm templates as unavailable (using manual coordinates instead)
   useEffect(() => {
-    const checkAcroTemplates = async () => {
-      try {
-        const [form15G, form15H] = await Promise.all([
-          fetch('/templates/15G.acro.pdf', { method: 'HEAD' }),
-          fetch('/templates/15H.acro.pdf', { method: 'HEAD' })
-        ]);
-        setAcroTemplatesAvailable(form15G.ok && form15H.ok);
-      } catch (error) {
-        console.warn('Could not check AcroForm template availability:', error);
-        setAcroTemplatesAvailable(false);
-      }
-    };
-
-    checkAcroTemplates();
+    setAcroTemplatesAvailable(false); // Always use manual coordinates now
   }, []);
 
   const handleDividendSave = (updatedDividend: DividendRow) => {

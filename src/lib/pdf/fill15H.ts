@@ -1,7 +1,7 @@
 import { PDFDocument, PDFPage, StandardFonts, rgb } from 'pdf-lib';
 import { Profile, DividendRow } from '../../types';
-import { templateManager } from './templateManager';
-import { validateAnchors, CoordinateMap } from './coordDetection';
+import { getManualCoordinateMap, ManualCoordinateMap } from './manualMaps';
+import { drawTextFieldManual, drawMultiLineTextManual, drawCheckboxManual, drawSignatureManual } from './renderUtils';
 
 /**
  * Format currency as ASCII-compatible "Rs. X,XXX.XX" format
@@ -87,7 +87,7 @@ export function profileToForm15HData(profile: Profile, dividend: DividendRow): F
 }
 
 /**
- * Fill Form 15H PDF with enhanced coordinate detection
+ * Fill Form 15H PDF with manual coordinates
  */
 export async function fillForm15H(
   templateFile: File,
@@ -95,24 +95,24 @@ export async function fillForm15H(
   debugMode: boolean = false
 ): Promise<Uint8Array> {
   try {
+    console.log('FILL15H: Starting PDF filling with manual coordinates');
     const arrayBuffer = await templateFile.arrayBuffer();
     const pdfDoc = await PDFDocument.load(arrayBuffer);
     const page = pdfDoc.getPage(0);
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    const coordinateMap = await templateManager.getCoordinateMap(templateFile, '15H');
-    
-    const validation = await validateAnchors(templateFile, coordinateMap, '15H');
-    if (!validation.valid) {
-      console.warn('Form 15H validation issues:', validation.errors);
-    }
+    console.log('FILL15H: Using manual coordinate map');
+    const manualMap = getManualCoordinateMap('15H');
 
-    await fillAll15HFieldsExact(page, font, data, coordinateMap, pdfDoc);
+    console.log('FILL15H: Filling all fields with manual coordinates');
+    await fillAll15HFieldsManual(page, font, data, manualMap, pdfDoc);
 
     if (debugMode) {
-      await renderDebugOverlayExact(page, font, coordinateMap);
+      console.log('FILL15H: Rendering debug overlay');
+      await renderDebugOverlayManual(page, font, manualMap);
     }
 
+    console.log('FILL15H: Saving filled PDF');
     return await pdfDoc.save();
   } catch (error) {
     console.error('Error filling Form 15H:', error);
@@ -120,15 +120,13 @@ export async function fillForm15H(
   }
 }
 
-async function fillAll15HFieldsExact(
+async function fillAll15HFieldsManual(
   page: PDFPage,
   font: any,
   data: Form15HData,
-  coordinateMap: CoordinateMap,
+  manualMap: ManualCoordinateMap,
   pdfDoc: PDFDocument
 ): Promise<void> {
-  const { drawTextFieldExact, drawMultiLineTextExact, drawCheckboxExact, drawSignatureExact } = await import('./renderUtils');
-  
   const textFieldMappings = [
     { field: 'name', value: data.name },
     { field: 'pan', value: data.pan },
@@ -148,14 +146,14 @@ async function fillAll15HFieldsExact(
   ];
 
   for (const mapping of textFieldMappings) {
-    const inputBox = coordinateMap.fields[mapping.field];
+    const inputBox = manualMap.fields[mapping.field];
     if (inputBox && mapping.value) {
-      await drawTextFieldExact(page, font, mapping.value, inputBox, coordinateMap.pageWidth, coordinateMap.pageHeight);
+      await drawTextFieldManual(page, font, mapping.value, inputBox);
     }
   }
 
-  if (data.address && coordinateMap.fields.address) {
-    await drawMultiLineTextExact(page, font, data.address, coordinateMap.fields.address, coordinateMap.pageWidth, coordinateMap.pageHeight);
+  if (data.address && manualMap.fields.address) {
+    await drawMultiLineTextManual(page, font, data.address, manualMap.fields.address);
   }
 
   const checkboxMappings = [
@@ -165,32 +163,48 @@ async function fillAll15HFieldsExact(
   ];
 
   for (const mapping of checkboxMappings) {
-    const inputBox = coordinateMap.fields[mapping.field];
+    const inputBox = manualMap.fields[mapping.field];
     if (inputBox && mapping.value) {
-      await drawCheckboxExact(page, mapping.value, inputBox, coordinateMap.pageWidth, coordinateMap.pageHeight);
+      await drawCheckboxManual(page, mapping.value, inputBox);
     }
   }
 
-  if (data.signature && coordinateMap.fields.signature) {
-    await drawSignatureExact(page, data.signature, coordinateMap.fields.signature, coordinateMap.pageWidth, coordinateMap.pageHeight, pdfDoc);
+  if (data.signature && manualMap.fields.signature) {
+    await drawSignatureManual(page, data.signature, manualMap.fields.signature, pdfDoc);
   }
 }
 
-async function renderDebugOverlayExact(page: PDFPage, font: any, coordinateMap: CoordinateMap): Promise<void> {
-  const { pageWidth, pageHeight } = coordinateMap;
-  const gridSize = 20;
+async function renderDebugOverlayManual(page: PDFPage, font: any, manualMap: ManualCoordinateMap): Promise<void> {
+  const { pageWidth, pageHeight } = manualMap;
+  const gridSize = 25;
   const gridColor = rgb(0.9, 0.9, 0.9);
 
+  // Draw grid
   for (let x = 0; x <= pageWidth; x += gridSize) {
-    page.drawLine({ start: { x, y: 0 }, end: { x, y: pageHeight }, thickness: 0.5, color: gridColor });
+    page.drawLine({ start: { x, y: 0 }, end: { x, y: pageHeight }, thickness: 0.3, color: gridColor });
   }
 
   for (let y = 0; y <= pageHeight; y += gridSize) {
-    page.drawLine({ start: { x: 0, y }, end: { x: pageWidth, y }, thickness: 0.5, color: gridColor });
+    page.drawLine({ start: { x: 0, y }, end: { x: pageWidth, y }, thickness: 0.3, color: gridColor });
   }
 
-  Object.entries(coordinateMap.anchors).forEach(([fieldKey, anchor]) => {
-    page.drawCircle({ x: anchor.x, y: anchor.y, size: 4, color: rgb(0, 1, 0), opacity: 0.7 });
-    page.drawText(`${fieldKey}`, { x: anchor.x + 6, y: anchor.y + 6, size: 8, font, color: rgb(0, 1, 0) });
+  // Draw coordinate labels
+  for (let x = 0; x <= pageWidth; x += gridSize * 4) {
+    for (let y = 0; y <= pageHeight; y += gridSize * 4) {
+      page.drawText(`${x.toFixed(0)},${y.toFixed(0)}`, {
+        x: x + 2, y: y + 2, size: 6, font, color: rgb(0.5, 0.5, 0.5)
+      });
+    }
+  }
+
+  // Draw input boxes
+  Object.entries(manualMap.fields).forEach(([fieldKey, inputBox]) => {
+    page.drawRectangle({
+      x: inputBox.x, y: inputBox.y, width: inputBox.width, height: inputBox.height,
+      borderColor: rgb(0, 0, 1), borderWidth: 1.5, opacity: 0.4
+    });
+    page.drawText(fieldKey, {
+      x: inputBox.x + 2, y: inputBox.y + inputBox.height + 4, size: 7, font, color: rgb(0, 0, 1)
+    });
   });
 }
